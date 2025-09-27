@@ -77,13 +77,3 @@ pre {
   font-style: italic;
   color: theme('colors.subtext0');
 }
-
-@layer utilities {
-      .no-scrollbar::-webkit-scrollbar {
-          display: none;
-      }
-      .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-    }
-  }
