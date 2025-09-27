@@ -54,6 +54,15 @@ body {
   scrollbar-width: none;
 }
 
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+    display: none;
+}
+
 body::-webkit-scrollbar { 
     display: none;
 }
