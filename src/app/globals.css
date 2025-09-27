@@ -50,15 +50,14 @@ body {
   background: var(--color-base);
   color: var(--color-text);
   font-family: var(--font-sans);
-      -ms-overflow-style: none;
-    scrollbar-width: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.body::-webkit-scrollbar { 
-    display: none;  /* Older Safari and Chromium */
+body::-webkit-scrollbar { 
+    display: none;
 }
 
-/* Add this for rehype-pretty-code */
 pre {
   background-color: var(--color-crust) !important;
 }
@@ -66,7 +65,7 @@ pre {
 .br {
   display: block;
   content: "";
-  margin-top: 1rem; /* More control over spacing */
+  margin-top: 1rem;
 }
 
 .note-block {
