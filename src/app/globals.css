@@ -48,6 +48,12 @@ body {
   background: var(--color-base);
   color: var(--color-text);
   font-family: var(--font-sans);
+      -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.body::-webkit-scrollbar { 
+    display: none;  /* Older Safari and Chromium */
 }
 
 /* Add this for rehype-pretty-code */
