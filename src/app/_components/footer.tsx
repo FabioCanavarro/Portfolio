@@ -34,12 +34,13 @@ export default function Footer() {
       <p className="text-base text-surface2 mt-8">
         Designed & Built by Fabio Canavarro
       </p>
+      
       <iframe
         src="https://webring.hackclub.com/embed.html"
         width="130px"
         height="60px"
         frameBorder="0"
-        className="mx-auto mt-4"
+        className="block mx-auto mt-4" 
       />
     </footer>
   );
