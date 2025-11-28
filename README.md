@@ -59,8 +59,3 @@ pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
-
-## 📬 Contact
-
-  - **GitHub:** [FabioCanavarro](https://github.com/FabioCanavarro)
-  - **Email:** fabiocanavarrotoh@gmail.com
