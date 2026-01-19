@@ -1,5 +1,7 @@
 @import "tailwindcss";
-
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 :root {
   --background: #24273a;
   --foreground: #cad3f5;
@@ -48,9 +50,23 @@ body {
   background: var(--color-base);
   color: var(--color-text);
   font-family: var(--font-sans);
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Add this for rehype-pretty-code */
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+    display: none;
+}
+
+body::-webkit-scrollbar { 
+    display: none;
+}
+
 pre {
   background-color: var(--color-crust) !important;
 }
@@ -58,7 +74,7 @@ pre {
 .br {
   display: block;
   content: "";
-  margin-top: 1rem; /* More control over spacing */
+  margin-top: 1rem;
 }
 
 .note-block {
