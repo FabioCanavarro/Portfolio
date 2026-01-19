@@ -1,4 +1,4 @@
-import { Github, Linkedin } from "lucide-react";
+import { Github, Link, Linkedin } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -7,29 +7,27 @@ export default function Footer() {
       <p className="text-subtext1 mb-2">
         Let&apos;s connect and build something amazing.
       </p>
-      <a
+      <Link
         href="mailto:fabiocanavarrotoh@gmail.com"
         className="text-lg text-mauve hover:underline"
       >
         fabiocanavarrotoh@gmail.com
-      </a>
+      </Link>
       <div className="flex justify-center space-x-6 mt-4">
-        <a
+        <Link
           href="https://github.com/FabioCanavarro"
           target="_blank"
-          rel="noopener noreferrer"
           className="text-subtext1 hover:text-mauve transition-colors duration-300"
         >
           <Github size={24} />
-        </a>
-        <a
+        </Link>
+        <Link
           href="https://www.linkedin.com/in/fabio-canavarro-584b232a7/"
           target="_blank"
-          rel="noopener noreferrer"
           className="text-subtext1 hover:text-blue transition-colors duration-300"
         >
           <Linkedin size={24} />
-        </a>
+        </Link>
       </div>
       <p className="text-base text-surface2 mt-8">
         Designed & Built by Fabio Canavarro
@@ -37,7 +35,7 @@ export default function Footer() {
       <iframe
         src="https://webring.hackclub.com/embed.html"
         width="130px"
-        height="60px"
+        height="53px"
         frameBorder="0"
         className="mx-auto mt-4"
       />
