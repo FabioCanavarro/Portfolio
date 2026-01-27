@@ -9,7 +9,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 
 const postsDirectory = path.join(process.cwd(), "posts");
 
-type PostData = {
+export type PostData = {
   slug: string;
   title: string;
   date: string;
@@ -57,7 +57,7 @@ export async function getPostData(slug: string) {
   const processedContent = await unified()
     .use(remarkParse)
     // REMOVE the allowDangerousHtml option from this line
-    .use(remarkRehype) 
+    .use(remarkRehype)
     .use(rehypePrettyCode, {
       theme: "catppuccin-macchiato",
     })
@@ -77,7 +77,11 @@ export async function getPostData(slug: string) {
     readingTime,
     previousPost,
     nextPost,
-    ...(matterResult.data as { title: string; date: string; description?: string }),
+    ...(matterResult.data as {
+      title: string;
+      date: string;
+      description?: string;
+    }),
   };
 }
 

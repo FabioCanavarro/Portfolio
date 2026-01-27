@@ -1,4 +1,5 @@
-import { Github, Link, Linkedin } from "lucide-react";
+import Link from "next/link";
+import { Github, Linkedin } from "lucide-react";
 
 export default function Footer() {
   return (
@@ -32,7 +33,6 @@ export default function Footer() {
       <p className="text-base text-surface2 mt-8">
         Designed & Built by Fabio Canavarro
       </p>
-<<<<<<< HEAD
       <iframe
         src="https://webring.hackclub.com/embed.html"
         width="130px"
@@ -40,16 +40,6 @@ export default function Footer() {
         frameBorder="0"
         className="mx-auto mt-4"
       />
-||||||| 819593e
-      <iframe
-        src="https://webring.hackclub.com/embed.html"
-        width="130px"
-        height="60px"
-        frameBorder="0"
-        className="mx-auto mt-4"
-      />
-=======
->>>>>>> a24e0ed39252ab407a2d27a173dc328152f5410c
     </footer>
   );
 }

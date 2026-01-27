@@ -1,4 +1,5 @@
 import Portfolio from "./portfolio";
+import { getSortedPostsData } from "@/lib/posts";
 
 export const metadata = {
   title: "Fabio Canavarro | Systems Programmer & Developer",
@@ -14,5 +15,6 @@ export const metadata = {
 };
 
 export default function HomePage() {
-  return <Portfolio />;
+  const posts = getSortedPostsData();
+  return <Portfolio posts={posts} />;
 }

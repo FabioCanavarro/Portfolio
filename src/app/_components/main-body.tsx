@@ -18,6 +18,7 @@ import AnimatedText from "./animated-text";
 import Link from "next/link";
 import AboutMe from "./about-me";
 
+
 const projects = [
   {
     title: "EpochDB",
@@ -103,7 +104,16 @@ const contributions = [
   },
 ];
 
-const MainBody = () => {
+
+import LatestPosts from "./latest-posts";
+import Contact from "./contact";
+import { PostData } from "@/lib/posts";
+
+interface MainBodyProps {
+  posts: PostData[];
+}
+
+const MainBody = ({ posts }: MainBodyProps) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -219,6 +229,8 @@ const MainBody = () => {
           </div>
         </motion.section>
 
+
+
         {/* Projects Section */}
         <section className="mb-24 relative">
           <div id="projects" className="absolute -top-24"></div>
@@ -274,6 +286,8 @@ const MainBody = () => {
           </motion.div>
         </section>
 
+
+
         {/* Open Source Contributions */}
         <motion.section
           className="mb-24 relative"
@@ -314,6 +328,10 @@ const MainBody = () => {
             ))}
           </div>
         </motion.section>
+
+        <LatestPosts posts={posts} />
+
+        <Contact />
       </motion.div>
     </main>
   );

@@ -129,6 +129,7 @@ const Navbar = () => {
                 >
                   Blog
                 </Link>
+
               </motion.div>
             </div>
           </motion.div>

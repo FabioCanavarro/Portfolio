@@ -24,7 +24,13 @@ const jsonLd = {
 
 
 
-export default function Portfolio() {
+import { PostData } from "@/lib/posts";
+
+interface PortfolioProps {
+  posts: PostData[];
+}
+
+export default function Portfolio({ posts }: PortfolioProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
@@ -57,7 +63,7 @@ export default function Portfolio() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <GridBackground />
-      <MainBody />
+      <MainBody posts={posts} />
       <Footer />
       <Analytics />
     </div>
