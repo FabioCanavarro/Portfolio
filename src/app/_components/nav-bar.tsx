@@ -45,13 +45,13 @@ const Navbar = () => {
             <div className="ml-10 flex items-baseline space-x-4">
               {!isBlogPage &&
                 navLinks.map((link) => (
-                  <a
+                  <Link
                     key={link.name}
                     href={link.href}
                     className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors"
                   >
                     {link.name}
-                  </a>
+                  </Link>
                 ))
               }
               {

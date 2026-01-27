@@ -107,6 +107,7 @@ const contributions = [
 
 import LatestPosts from "./latest-posts";
 import Contact from "./contact";
+import GithubActivity from "./github-activity";
 import { PostData } from "@/lib/posts";
 
 interface MainBodyProps {
@@ -328,6 +329,8 @@ const MainBody = ({ posts }: MainBodyProps) => {
             ))}
           </div>
         </motion.section>
+
+        <GithubActivity />
 
         <LatestPosts posts={posts} />
 
