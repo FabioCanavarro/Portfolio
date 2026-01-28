@@ -155,7 +155,7 @@ export default function GithubActivity() {
              {/* Stats Card */}
             <div className="w-full bg-crust/50 p-4 rounded-xl border border-surface0 backdrop-blur-sm shadow-lg shadow-crust/50 flex items-center justify-center">
                <Image
-                src={`https://github-readme-stats.vercel.app/api?username=FabioCanavarro&show_icons=true&hide_border=true&count_private=true&theme=catppuccin_mocha&hide_rank=false&include_all_commits=true&hide_title=true`}
+                src={`https://github-readme-stats.vercel.app/api?username=FabioCanavarro&amp;show_icons=true&amp;hide_border=true&amp;count_private=true&amp;theme=catppuccin_mocha`}
                 alt="GitHub Stats"
                 width={1000}
                 height={400}
