@@ -2,9 +2,9 @@
 
 This is the source code for my personal portfolio website, designed to showcase my skills, projects, and professional experience as a software developer. It is built with a modern tech stack to be fast, responsive, and SEO-friendly
 
-[**View Live Demo**](https://fabiocanavarro.vercel.app/)
+[**View Live Demo**](www.fabioc.me)
 
-## ✨ Features
+## Features
 
 - **Modern & Sleek Design:** Styled with the Catppuccin color palette for a clean, developer-focused aesthetic.
 - **Dynamic & Interactive:**
@@ -14,7 +14,7 @@ This is the source code for my personal portfolio website, designed to showcase 
 - **SEO Optimized:** Built with Next.js for server-side rendering and includes structured data (JSON-LD) to improve search engine visibility.
 - **Component-Based:** Organized with a clean and maintainable project structure.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Framework:** [Next.js](https://nextjs.org/) (App Router)
 - **Styling:** [Tailwind CSS](https://tailwindcss.com/)
@@ -22,7 +22,7 @@ This is the source code for my personal portfolio website, designed to showcase 
 - **Icons:** [Lucide React](https://lucide.dev/)
 - **Deployment:** [Vercel](https://vercel.com)
 
-## 🚀 Getting Started
+## Getting Started
 
 To run this project locally, follow these steps:
 
@@ -60,7 +60,7 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
 
-## 📬 Contact
+## Contact
 
   - **GitHub:** [FabioCanavarro](https://github.com/FabioCanavarro)
   - **Email:** fabiocanavarrotoh@gmail.com
