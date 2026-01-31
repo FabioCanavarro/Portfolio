@@ -2,7 +2,7 @@
 
 This is the source code for my personal portfolio website, designed to showcase my skills, projects, and professional experience as a software developer. It is built with a modern tech stack to be fast, responsive, and SEO-friendly
 
-[**View Live Demo**](www.fabioc.me)
+[**View Live Demo**](https://fabioc.me)
 
 ## Features
 
