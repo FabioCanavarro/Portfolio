@@ -58,56 +58,63 @@ const GridBackground = ({
                     }
                 }
 
-                #interactive-background {
+                #interactive-root {
                     position: fixed;
                     inset: 0;
                     z-index: 0;
-                    /* 
-                       Base background color and gradient mask 
-                       This layer stays completely fixed to the viewport
-                    */
                     background-color: var(--color-base);
-                    background-image: 
-                        linear-gradient(90deg, var(--color-base) 0%, transparent 59%),
-                        linear-gradient(90deg, var(--color-base), var(--color-base));
-                    background-position: 0px 0px, 0px 0px;
-                    background-size: 100% 100%, 100% 100%;
                     animation: fadeIn 2s ease-in-out;
+                    overflow: hidden;
+                    pointer-events: none;
                 }
 
-                /* The scrolling grid layer */
-                #interactive-background::after {
-                    content: "";
+                .bg-scrolling-grid {
                     position: absolute;
-                    /* Make it much larger than the viewport so we can translate it without revealing edges */
-                    top: -100vh;
-                    left: -100vw;
-                    width: 300vw;
-                    height: 300vh;
-                    z-index: -1;
+                    inset: 0;
+                    z-index: 1;
                     
                     /* The repeating grid patterns */
                     background-image: 
                         repeating-linear-gradient(45deg, rgba(165, 173, 206, 0.1) 0px, rgba(165, 173, 206, 0.1) 1px, transparent 1px, transparent 40px),
                         repeating-linear-gradient(135deg, rgba(165, 173, 206, 0.1) 0px, rgba(165, 173, 206, 0.1) 1px, transparent 1px, transparent 40px);
                     
-                    /* Apply scroll movement using transform for better performance and guaranteed infinite coverage */
-                    transform: translate3d(var(--scroll-offset, 0px), var(--scroll-offset, 0px), 0);
-                    will-change: transform;
+                    /* Apply scroll movement seamlessly since repeating-gradients tile infinitely */
+                    background-position: var(--scroll-offset, 0px) var(--scroll-offset, 0px);
+                    will-change: background-position;
                 }
 
-                /* The pseudo-element for the glowing effect */
-                #interactive-background::before {
-                    content: "";
+                .bg-fog {
                     position: absolute;
                     inset: 0;
+                    z-index: 2;
+                    
+                    background-image: 
+                        linear-gradient(67.5deg, rgb(215, 215, 215) 0%, rgb(215, 215, 215) 46%,rgb(198, 198, 198) 46%, rgb(198, 198, 198) 49%,rgb(181, 181, 181) 49%, rgb(181, 181, 181) 56%,rgb(164, 164, 164) 56%, rgb(164, 164, 164) 61%,rgb(146, 146, 146) 61%, rgb(146, 146, 146) 75%,rgb(129, 129, 129) 75%, rgb(129, 129, 129) 84%,rgb(112, 112, 112) 84%, rgb(112, 112, 112) 100%),
+                        linear-gradient(22.5deg, rgb(215, 215, 215) 0%, rgb(215, 215, 215) 46%,rgb(198, 198, 198) 46%, rgb(198, 198, 198) 49%,rgb(181, 181, 181) 49%, rgb(181, 181, 181) 56%,rgb(164, 164, 164) 56%, rgb(164, 164, 164) 61%,rgb(146, 146, 146) 61%, rgb(146, 146, 146) 75%,rgb(129, 129, 129) 75%, rgb(129, 129, 129) 84%,rgb(112, 112, 112) 84%, rgb(112, 112, 112) 100%),
+                        linear-gradient(112.5deg, rgb(215, 215, 215) 0%, rgb(215, 215, 215) 46%,rgb(198, 198, 198) 46%, rgb(198, 198, 198) 49%,rgb(181, 181, 181) 49%, rgb(181, 181, 181) 56%,rgb(164, 164, 164) 56%, rgb(164, 164, 164) 61%,rgb(146, 146, 146) 61%, rgb(146, 146, 146) 75%,rgb(129, 129, 129) 75%, rgb(129, 129, 129) 84%,rgb(112, 112, 112) 84%, rgb(112, 112, 112) 100%),
+                        linear-gradient(90deg, rgb(231, 231, 231),rgb(195, 195, 195));
+                    
+                    background-blend-mode: overlay, overlay, overlay, normal;
+                    /* Use mix-blend-mode to nicely blend this grey layer into the dark Catppuccin theme */
+                    mix-blend-mode: overlay;
+                    opacity: 0.1; /* "make it lighter" */
+                }
 
-                    /* The glowing effect that follows the mouse */
-                    background: radial-gradient(
-                        500px circle at var(--mouse-x) var(--mouse-y),
-                        rgba(203, 166, 247, 0.1), /* Soft mauve glow */
-                        transparent 80%
-                    );
+                .bg-mask-and-glow {
+                    position: absolute;
+                    inset: 0;
+                    z-index: 3;
+                    /* 
+                       Combine the static left transparency mask (Base -> Transparent) 
+                       and the interactive mouse glow 
+                    */
+                    background-image: 
+                        radial-gradient(
+                            500px circle at var(--mouse-x) var(--mouse-y),
+                            rgba(203, 166, 247, 0.1), /* Soft mauve glow */
+                            transparent 80%
+                        ),
+                        linear-gradient(90deg, var(--color-base) 0%, transparent 59%);
                     transition: background 0.2s ease-out;
                 }
             `}</style>
@@ -117,7 +124,13 @@ const GridBackground = ({
                     '--grid-start': `${sizex}px`,
                     '--grid-end': `${sizey}px`,
                 } as CustomGridProperties}
-            ></div>
+            >
+                <div id="interactive-root">
+                    <div className="bg-scrolling-grid" />
+                    <div className="bg-fog" />
+                    <div className="bg-mask-and-glow" />
+                </div>
+            </div>
         </>
     );
 };
