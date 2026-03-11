@@ -10,6 +10,8 @@ interface CustomGridProperties extends React.CSSProperties {
 const GridBackground = ({
     sizex = 0,
     sizey = 1,
+    rippleRadius = "500px", // Size of the entire ripple effect
+    rippleHoleSize = "20%", // Size of the dark hole in the center
 }) => {
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -83,6 +85,42 @@ const GridBackground = ({
                     will-change: background-position;
                 }
 
+                .bg-antigravity-ripple {
+                    position: absolute;
+                    inset: 0;
+                    z-index: 2;
+                    opacity: 0.4; /* Low opacity ripple */
+                    pointer-events: none;
+                    
+                    /* User's antigravity background pattern, with a dark center to hide the lines but keep the background darkness */
+                    background-image: 
+                        radial-gradient(
+                            var(--ripple-radius, 500px) circle at var(--mouse-x) var(--mouse-y),
+                            rgb(0,0,0) 0%,
+                            rgb(0,0,0) var(--ripple-hole, 20%),
+                            transparent calc(var(--ripple-hole, 20%) + 2%)
+                        ),
+                        repeating-linear-gradient(112.5deg, rgb(0,0,0) 0px, rgb(0,0,0) 14px,transparent 14px, transparent 15px),
+                        repeating-linear-gradient(22.5deg, rgb(0,0,0) 0px, rgb(0,0,0) 14px,transparent 14px, transparent 15px),
+                        linear-gradient(90deg, hsl(146,54%,44%),hsl(218,54%,44%),hsl(290,54%,44%),hsl(2,54%,44%),hsl(74,54%,44%));
+                    
+                    /* Mask it so it only appears around the mouse */
+                    -webkit-mask-image: radial-gradient(
+                        var(--ripple-radius, 500px) circle at var(--mouse-x) var(--mouse-y),
+                        rgba(0, 0, 0, 1) 0%,
+                        rgba(0, 0, 0, 1) 35%,
+                        transparent 80%
+                    );
+                    mask-image: radial-gradient(
+                        var(--ripple-radius, 500px) circle at var(--mouse-x) var(--mouse-y),
+                        rgba(0, 0, 0, 1) 0%,
+                        rgba(0, 0, 0, 1) 35%,
+                        transparent 80%
+                    );
+                    
+                    transition: -webkit-mask-image 0.2s ease-out, mask-image 0.2s ease-out;
+                }
+
                 .bg-mask-and-glow {
                     position: absolute;
                     inset: 0;
@@ -106,10 +144,13 @@ const GridBackground = ({
                 style={{
                     '--grid-start': `${sizex}px`,
                     '--grid-end': `${sizey}px`,
-                } as CustomGridProperties}
+                    '--ripple-radius': rippleRadius,
+                    '--ripple-hole': rippleHoleSize,
+                } as CustomGridProperties & { '--ripple-radius': string; '--ripple-hole': string }}
             >
                 <div id="interactive-root">
                     <div className="bg-scrolling-grid" />
+                    <div className="bg-antigravity-ripple" />
                     <div className="bg-mask-and-glow" />
                 </div>
             </div>
