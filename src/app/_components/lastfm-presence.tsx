@@ -42,7 +42,7 @@ export default function LastfmPresence() {
         } else {
           setData(null);
         }
-      } catch (_err) {
+      } catch {
         setError(true);
       } finally {
         setIsLoading(false);

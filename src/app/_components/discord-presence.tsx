@@ -32,7 +32,7 @@ export default function DiscordPresence() {
         } else {
           setError(true);
         }
-      } catch (_err) {
+      } catch {
         setError(true);
       } finally {
         setIsLoading(false);
@@ -90,7 +90,8 @@ export default function DiscordPresence() {
   // Parse Activities
   const spotify = data.spotify;
   // Fallback to first regular activity if not Spotify
-  const activity = data.activities?.find((a) => a.type !== 4); // Exclude custom status
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const activity = data.activities?.find((a: any) => a.type !== 4); // Exclude custom status
 
   return (
     <motion.div 
