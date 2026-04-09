@@ -64,12 +64,26 @@ const Navbar = () => {
                   </Link>
                 )
               }
-              <Link
-                href="/blog"
-                className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
-              >
-                Blog
-              </Link>
+              <div className="flex gap-2">
+                <Link
+                  href="/gallery"
+                  className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
+                >
+                  Gallery
+                </Link>
+                <Link
+                  href="/music"
+                  className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
+                >
+                  Music
+                </Link>
+                <Link
+                  href="/blog"
+                  className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
+                >
+                  Blog
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -120,16 +134,28 @@ const Navbar = () => {
                 </motion.a>
               }
               
-              <motion.div
-              >
+              <motion.div className="space-y-1">
                 <Link
-                  href="/blog"
+                  href="/gallery"
                   onClick={() => setIsOpen(false)}
                   className="text-subtext1 hover:text-text bg-mauve/10 block px-3 py-2 rounded-md font-medium transition-colors"
                 >
+                  Gallery
+                </Link>
+                <Link
+                  href="/music"
+                  onClick={() => setIsOpen(false)}
+                  className="text-subtext1 hover:text-text bg-mauve/10 block px-3 py-2 rounded-md font-medium transition-colors mt-1"
+                >
+                  Music
+                </Link>
+                <Link
+                  href="/blog"
+                  onClick={() => setIsOpen(false)}
+                  className="text-subtext1 hover:text-text bg-mauve/10 block px-3 py-2 rounded-md font-medium transition-colors mt-1"
+                >
                   Blog
                 </Link>
-
               </motion.div>
             </div>
           </motion.div>

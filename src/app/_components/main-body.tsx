@@ -17,6 +17,8 @@ import {
 import AnimatedText from "./animated-text";
 import Link from "next/link";
 import AboutMe from "./about-me";
+import DiscordPresence from "./discord-presence";
+import LastfmPresence from "./lastfm-presence";
 
 
 const projects = [
@@ -184,6 +186,10 @@ const MainBody = ({ posts }: MainBodyProps) => {
               <Mail size={28} />
             </Link>
           </motion.div>
+          <div className="flex flex-col xl:flex-row items-center justify-center gap-4 mt-8">
+            <DiscordPresence />
+            <LastfmPresence />
+          </div>
         </section>
 
       <AboutMe /> 

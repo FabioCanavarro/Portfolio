@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import MainBody from "./_components/main-body";
 import Footer from "./_components/footer";
 import GridBackground from "./_components/grid-background";
-import { Analytics } from "@vercel/analytics/next"
+import { Analytics } from "@vercel/analytics/react"
 
 const jsonLd = {
   "@context": "https://schema.org",

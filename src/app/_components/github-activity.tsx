@@ -27,11 +27,16 @@ export default function GithubActivity() {
         const response = await fetch(
           "https://api.github.com/users/FabioCanavarro/events"
         );
-        const events: GithubEvent[] = await response.json();
+        const events = await response.json();
+
+        if (!Array.isArray(events)) {
+          console.error("GitHub API returned a non-array response:", events);
+          return;
+        }
 
         // Filter for PushEvents and check blacklist
         const pushEvent = events.find(
-          (event) =>
+          (event: GithubEvent) =>
             event.type === "PushEvent" &&
             !blacklist.some((blocked) => event.repo.name.includes(blocked))
         );

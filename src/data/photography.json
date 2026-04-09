@@ -1,0 +1,46 @@
+[
+  {
+    "id": "p1",
+    "title": "A Walk Through Yosemite",
+    "description": "Captured this beautiful sunset after a 4-hour hike.",
+    "backstory": "This shot was taken near Half Dome. We waited for 2 hours in the freezing cold until the sun hit the exact spot in the valley.",
+    "date": "2026-03-15",
+    "year": "2026",
+    "tags": ["Nature", "Landscape", "Sunset"],
+    "original": "https://images.unsplash.com/photo-1533471024345-d85311e6191b?q=80&w=1200&auto=format&fit=crop",
+    "edited": "https://images.unsplash.com/photo-1506744626753-ba83010f8488?q=80&w=1200&auto=format&fit=crop"
+  },
+  {
+    "id": "p2",
+    "title": "Neon Dreams",
+    "description": "Cyberpunk vibes in the heart of Tokyo.",
+    "backstory": "It was raining heavily night in Shinjuku. The reflections on the puddles created an incredible neon mirror. Shot on a 50mm f/1.8.",
+    "date": "2026-01-20",
+    "year": "2026",
+    "tags": ["Urban", "Night", "Street", "Tokyo"],
+    "original": "https://images.unsplash.com/photo-1542382257-80da9fb9f5abc?q=80&w=1200&auto=format&fit=crop",
+    "edited": "https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?q=80&w=1200&auto=format&fit=crop"
+  },
+  {
+    "id": "p3",
+    "title": "Serene Morning",
+    "description": "The crisp morning air by the lake in Switzerland.",
+    "backstory": "Just after sunrise. The lake was perfectly still, providing a flawless reflection of the Alps. Waited 3 days for the weather to clear up.",
+    "date": "2025-11-10",
+    "year": "2025",
+    "tags": ["Mountain", "Lake", "Switzerland"],
+    "original": "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?q=80&w=1200&auto=format&fit=crop",
+    "edited": "https://images.unsplash.com/photo-1494500764479-0c8f2919a3d4?q=80&w=1200&auto=format&fit=crop"
+  },
+  {
+    "id": "p4",
+    "title": "Market Chaos",
+    "description": "Vibrant colors and beautiful chaos at a local market in Marrakech.",
+    "backstory": "Navigating the souks is always an adventure. Finding a tiny sliver of light illuminating a spice stand was a magical moment.",
+    "date": "2025-05-05",
+    "year": "2025",
+    "tags": ["Street", "Culture", "People", "Morocco"],
+    "original": "https://images.unsplash.com/photo-1549488344-93e1baef0c9b?q=80&w=1200&auto=format&fit=crop",
+    "edited": "https://images.unsplash.com/photo-1563805042-7684c8a9e9cb?q=80&w=1200&auto=format&fit=crop"
+  }
+]

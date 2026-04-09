@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.102.1",
     "@tailwindcss/typography": "^0.5.16",
     "@vercel/analytics": "^1.5.0",
     "framer-motion": "^12.23.0",
@@ -21,7 +22,8 @@
     "rehype-pretty-code": "^0.14.1",
     "rehype-stringify": "^10.0.1",
     "remark-parse": "^11.0.0",
-    "remark-rehype": "^11.1.2"
+    "remark-rehype": "^11.1.2",
+    "use-lanyard": "^1.7.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
