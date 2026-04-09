@@ -10,6 +10,7 @@ import Image from "next/image";
 const DISCORD_ID = (process.env.NEXT_PUBLIC_DISCORD_ID || "123456789012345678").trim();
 
 export default function DiscordPresence() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -31,7 +32,7 @@ export default function DiscordPresence() {
         } else {
           setError(true);
         }
-      } catch (err) {
+      } catch (_err) {
         setError(true);
       } finally {
         setIsLoading(false);

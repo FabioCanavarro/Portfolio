@@ -10,6 +10,7 @@ const API_KEY = (process.env.NEXT_PUBLIC_LASTFM_API_KEY || "").trim();
 const USERNAME = (process.env.NEXT_PUBLIC_LASTFM_USERNAME || "").trim();
 
 export default function LastfmPresence() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -41,7 +42,7 @@ export default function LastfmPresence() {
         } else {
           setData(null);
         }
-      } catch (err) {
+      } catch (_err) {
         setError(true);
       } finally {
         setIsLoading(false);

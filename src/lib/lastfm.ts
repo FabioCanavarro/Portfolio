@@ -44,6 +44,7 @@ export async function getRecentTracks(limit: number = 10): Promise<LastFmTrack[]
     
     if (!data.recenttracks) return [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tracks = data.recenttracks.track.map((track: Record<string, any>) => ({
       name: track.name,
       artist: track.artist["#text"],
@@ -77,6 +78,7 @@ export async function getTopAlbums(limit: number = 6): Promise<LastFmAlbum[]> {
     
     if (!data.topalbums) return [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const albums = data.topalbums.album.map((album: Record<string, any>) => ({
       name: album.name,
       artist: album.artist.name,
@@ -109,6 +111,7 @@ export async function getTopArtists(limit: number = 6): Promise<LastFmArtist[]> 
     
     if (!data.topartists) return [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const artists = data.topartists.artist.map((artist: Record<string, any>) => ({
       name: artist.name,
       playcount: artist.playcount,

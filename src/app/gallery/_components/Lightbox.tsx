@@ -96,7 +96,7 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
           
           <div className="space-y-6 flex-1 text-sm md:text-base text-subtext1">
             <p className="leading-relaxed font-medium text-text bg-surface0/30 p-4 rounded-xl border border-surface0/50">
-              "{photo.description}"
+              &quot;{photo.description}&quot;
             </p>
             
             <div>
