@@ -137,10 +137,10 @@ export default async function MusicPage() {
             <Play className="w-6 h-6 mr-3" />
             Recently Played
           </h2>
-          <div className="bg-crust/50 border border-surface0 rounded-2xl overflow-hidden backdrop-blur-sm">
+          <div className="bg-crust/50 border border-surface0 rounded-2xl overflow-hidden backdrop-blur-sm transform-gpu relative z-10">
             <ul className="divide-y divide-surface0">
               {recentTracks.filter(t => !t.nowPlaying).map((track, idx) => (
-                <li key={idx} className="hover:bg-surface0/30 transition-colors">
+                <li key={idx} className="hover:bg-surface0/30 transition-colors group">
                   <a
                     href={track.url}
                     target="_blank"
@@ -157,7 +157,7 @@ export default async function MusicPage() {
                     </div>
                     <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-4">
                       <div className="flex flex-col min-w-0">
-                        <p className="text-text font-semibold text-sm sm:text-base truncate">
+                        <p className="text-mauve group-hover:text-sapphire transition-colors font-semibold text-sm sm:text-[1rem] sm:leading-6 truncate relative z-10 antialiased transform-gpu">
                           {track.name}
                         </p>
                         <p className="text-subtext0 text-xs sm:text-sm truncate">

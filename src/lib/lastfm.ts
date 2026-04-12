@@ -1,3 +1,5 @@
+import { getYTMusicImage } from "./ytmusic";
+
 const API_BASE = "https://ws.audioscrobbler.com/2.0/";
 const API_KEY = (process.env.NEXT_PUBLIC_LASTFM_API_KEY || "").trim();
 const USERNAME = (process.env.NEXT_PUBLIC_LASTFM_USERNAME || "").trim();
@@ -54,7 +56,12 @@ export async function getRecentTracks(limit: number = 10): Promise<LastFmTrack[]
       nowPlaying: track["@attr"]?.nowplaying === "true",
     }));
 
-    return tracks;
+    const enrichedTracks = await Promise.all(tracks.map(async (track: LastFmTrack) => {
+      const ytImage = await getYTMusicImage(`${track.artist} ${track.name}`, "SONG");
+      return { ...track, image: ytImage || track.image };
+    }));
+
+    return enrichedTracks;
   } catch (error) {
     console.error("Error fetching Last.fm recent tracks:", error);
     return [];
@@ -87,7 +94,12 @@ export async function getTopAlbums(limit: number = 6): Promise<LastFmAlbum[]> {
       image: album.image[3]["#text"] || album.image[2]["#text"],
     }));
 
-    return albums;
+    const enrichedAlbums = await Promise.all(albums.map(async (album: LastFmAlbum) => {
+      const ytImage = await getYTMusicImage(`${album.artist} ${album.name}`, "ALBUM");
+      return { ...album, image: ytImage || album.image };
+    }));
+
+    return enrichedAlbums;
   } catch (error) {
     console.error("Error fetching Last.fm top albums:", error);
     return [];
@@ -121,7 +133,12 @@ export async function getTopArtists(limit: number = 6): Promise<LastFmArtist[]> 
       image: artist.image[3]["#text"] || artist.image[2]["#text"],
     }));
 
-    return artists;
+    const enrichedArtists = await Promise.all(artists.map(async (artist: LastFmArtist) => {
+      const ytImage = await getYTMusicImage(artist.name, "ARTIST");
+      return { ...artist, image: ytImage || artist.image };
+    }));
+
+    return enrichedArtists;
   } catch (error) {
     console.error("Error fetching Last.fm top artists:", error);
     return [];

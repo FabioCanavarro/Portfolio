@@ -30,7 +30,7 @@ export default function Footer() {
           <Linkedin size={24} />
         </Link>
       </div>
-      <p className="text-base text-surface2 mt-8">
+      <p className="text-[1rem] leading-6 text-surface2 mt-8">
         Designed & Built by Fabio Canavarro
       </p>
       <iframe

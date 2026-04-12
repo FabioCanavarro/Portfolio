@@ -31,12 +31,29 @@ export default function LastfmPresence() {
         if (json.recenttracks && json.recenttracks.track.length > 0) {
           const track = json.recenttracks.track[0];
           const isPlaying = track["@attr"]?.nowplaying === "true";
+          const fallbackImage = track.image[3]["#text"] || track.image[2]["#text"];
+          const artist = track.artist["#text"];
+          const name = track.name;
+
+          let image = fallbackImage;
+          if (isPlaying) {
+            try {
+              const ytRes = await fetch(`/api/ytmusic-image?q=${encodeURIComponent(artist + " " + name)}&type=SONG`);
+              if (ytRes.ok) {
+                const ytData = await ytRes.json();
+                if (ytData.imageUrl) image = ytData.imageUrl;
+              }
+            } catch {
+              // ignore
+            }
+          }
+
           setData({
-            name: track.name,
-            artist: track.artist["#text"],
-            image: track.image[3]["#text"] || track.image[2]["#text"],
-            isPlaying,
-            url: track.url
+             name: name,
+             artist: artist,
+             image,
+             isPlaying,
+             url: track.url
           });
           setError(false);
         } else {

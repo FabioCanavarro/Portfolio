@@ -19,6 +19,18 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "lastfm.freetls.fastly.net",
       },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "yt3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "i.ytimg.com",
+      },
     ],
     dangerouslyAllowSVG: true,
   },
