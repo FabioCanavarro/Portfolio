@@ -15,7 +15,10 @@ async function getYTMusicClient() {
   return ytmusicPromise;
 }
 
-export async function getYTMusicImage(query: string, type: "ARTIST" | "ALBUM" | "SONG"): Promise<string | null> {
+export async function getYTMusicImage(
+  query: string,
+  type: "ARTIST" | "ALBUM" | "SONG",
+): Promise<string | null> {
   const cacheKey = `${type}:${query.toLowerCase()}`;
   if (ytImageCache.has(cacheKey)) {
     return ytImageCache.get(cacheKey) || null;
@@ -23,27 +26,35 @@ export async function getYTMusicImage(query: string, type: "ARTIST" | "ALBUM" | 
 
   try {
     const client = await getYTMusicClient();
-    const results = await client.search(query, type);
-    
+    const results = await client.search(query);
+
     if (results && results.length > 0) {
-      // Find the highest resolution image by looking at the last thumbnail in the array
+      // Filter by result type (SONG → "SONG", ARTIST → "ARTIST", ALBUM → "ALBUM")
+      // Fall back to the first result if no match is found
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const item = results[0] as any;
+      const typed = (results as any[]).find(
+        (r) => r.resultType?.toUpperCase() === type,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const item = (typed ?? results[0]) as any;
       const thumbnails = item.thumbnails;
-      
+
       if (thumbnails && thumbnails.length > 0) {
-        // Some URLs come back with "=w120-h120..." which can be small, we can strip the sizing parameter 
+        // Some URLs come back with "=w120-h120..." which can be small, we can strip the sizing parameter
         // to get the raw image, but YT usually returns good enough sizes natively on the last index.
         const imageUrl = thumbnails[thumbnails.length - 1].url;
-        
+
         // Enhance resolution by rewriting Google's proxy URL sizes if present
-        const highResUrl = imageUrl.replace(/=w\d+-h\d+.*$/, '=w600-h600-l90-rj');
-        
+        const highResUrl = imageUrl.replace(
+          /=w\d+-h\d+.*$/,
+          "=w600-h600-l90-rj",
+        );
+
         ytImageCache.set(cacheKey, highResUrl);
         return highResUrl;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     console.warn(`[YTMusic] Failed to fetch image for: ${query}`);
   }
 

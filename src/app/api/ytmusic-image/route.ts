@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     const imageUrl = await getYTMusicImage(q, type);
     return NextResponse.json({ imageUrl });
-  } catch (error) {
+  } catch (_error) {
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
