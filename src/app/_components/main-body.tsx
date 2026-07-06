@@ -181,7 +181,7 @@ const MainBody = ({ posts }: MainBodyProps) => {
             Fabio Canavarro
           </motion.h1>
           <AnimatedText
-            text="A 16-year-old developer and researcher crafting innovative solutions with code."
+            text="A 17-year-old developer and researcher crafting innovative solutions with code."
             el="h2"
             className="text-lg md:text-xl text-subtext0 mb-8"
           />
@@ -291,7 +291,7 @@ const MainBody = ({ posts }: MainBodyProps) => {
                       {project.title}
                     </h3>
                   </div>
-                  <p className="text-subtext0 mb-4 h-24">
+                  <p className="text-subtext0 mb-4 min-h-[120px]">
                     {project.description}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-4">
