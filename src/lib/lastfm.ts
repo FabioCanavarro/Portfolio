@@ -68,7 +68,13 @@ export async function getRecentTracks(limit: number = 10): Promise<LastFmTrack[]
   }
 }
 
-export async function getTopAlbums(limit: number = 6): Promise<LastFmAlbum[]> {
+export type LastFmTag = {
+  name: string;
+  count: string;
+  url: string;
+};
+
+export async function getTopAlbums(limit: number = 6, period: string = "overall"): Promise<LastFmAlbum[]> {
   console.log("Last.fm Debug (Top Albums) - Env Vars:", { 
     hasApiKey: !!API_KEY, 
     username: USERNAME 
@@ -76,7 +82,7 @@ export async function getTopAlbums(limit: number = 6): Promise<LastFmAlbum[]> {
 
   if (!API_KEY || !USERNAME) return [];
 
-  const url = `${API_BASE}?method=user.gettopalbums&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}`;
+  const url = `${API_BASE}?method=user.gettopalbums&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}&period=${period}`;
 
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } }); // revalidate hourly
@@ -106,7 +112,7 @@ export async function getTopAlbums(limit: number = 6): Promise<LastFmAlbum[]> {
   }
 }
 
-export async function getTopArtists(limit: number = 6): Promise<LastFmArtist[]> {
+export async function getTopArtists(limit: number = 6, period: string = "overall"): Promise<LastFmArtist[]> {
   console.log("Last.fm Debug (Top Artists) - Env Vars:", { 
     hasApiKey: !!API_KEY, 
     username: USERNAME 
@@ -114,7 +120,7 @@ export async function getTopArtists(limit: number = 6): Promise<LastFmArtist[]> 
 
   if (!API_KEY || !USERNAME) return [];
 
-  const url = `${API_BASE}?method=user.gettopartists&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}`;
+  const url = `${API_BASE}?method=user.gettopartists&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}&period=${period}`;
 
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } }); // revalidate hourly
@@ -141,6 +147,29 @@ export async function getTopArtists(limit: number = 6): Promise<LastFmArtist[]> 
     return enrichedArtists;
   } catch (error) {
     console.error("Error fetching Last.fm top artists:", error);
+    return [];
+  }
+}
+
+export async function getTopTags(limit: number = 6): Promise<LastFmTag[]> {
+  if (!API_KEY || !USERNAME) return [];
+
+  const url = `${API_BASE}?method=user.gettoptags&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 86400 } }); // revalidate daily
+    const data = await res.json();
+    
+    if (!data.toptags || !data.toptags.tag) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return data.toptags.tag.map((tag: Record<string, any>) => ({
+      name: tag.name,
+      count: tag.count,
+      url: tag.url,
+    }));
+  } catch (error) {
+    console.error("Error fetching Last.fm top tags:", error);
     return [];
   }
 }

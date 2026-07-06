@@ -13,6 +13,8 @@ import {
   Building,
   Sparkles,
   Database,
+  Keyboard,
+  Brain,
 } from "lucide-react";
 import AnimatedText from "./animated-text";
 import Link from "next/link";
@@ -46,20 +48,44 @@ const projects = [
     link: "https://github.com/FabioCanavarro/FerrisLog-ServerClient",
   },
   {
+    title: "Custom Mechanical Keyboard",
+    description:
+      "Full hardware design files for a custom mechanical keyboard designed for the Hack Club Keeb event. Includes KiCad schematics, BOMs, and 3D .step files.",
+    tags: ["Hardware Design", "PCB Design", "KiCad", "3D Modeling", "Mechanical Keyboard"],
+    icon: <Keyboard className="w-6 h-6 text-yellow" />,
+    link: "https://github.com/FabioCanavarro/custom-keyboard",
+  },
+  {
+    title: "NeuraLearn",
+    description:
+      "Led a school research project, designing the hardware and core algorithms while building the firmware with AI assistance. Coordinated a team that created the web dashboard, 3D enclosure, and presentation video.",
+    tags: ["Hardware Design", "C++", "Firmware", "AI-Assisted", "IoT", "Research"],
+    icon: <Brain className="w-6 h-6 text-pink" />,
+    link: "https://github.com/ScholaMates/",
+  },
+  {
     title: "Agrobiosync",
     description:
-      "An IoT-based automated farming system with a web dashboard to monitor and control cultivation, powered by an ESP8266.",
-    tags: ["C++", "IoT", "ESP8266", "React", "Web Dev"],
+      "Led the development of an IoT-based automated farming system. Programmed the ESP8266 firmware and React dashboard with AI assistance to monitor and control cultivation.",
+    tags: ["C++", "IoT", "ESP8266", "React", "Web Dev", "AI-Assisted"],
     icon: <Sparkles className="w-6 h-6 text-green" />,
     link: "https://github.com/FabioCanavarro/Agrobiosync",
   },
   {
     title: "ChronoDomain",
     description:
-      "A Minecraft mod that introduces time manipulation mechanics for blocks, entities, and entire chunks.",
-    tags: ["Java", "Game Modding", "Minecraft"],
+      "A Minecraft mod that introduces time manipulation mechanics for blocks, entities, and entire chunks. Programmed with AI-assisted code generation.",
+    tags: ["Java", "Game Modding", "Minecraft", "AI-Assisted"],
     icon: <Gamepad2 className="w-6 h-6 text-flamingo" />,
     link: "https://github.com/FabioCanavarro/Chrono-Domain",
+  },
+  {
+    title: "Portfolio Website",
+    description:
+      "My personal portfolio website built to showcase my projects, skills, and music feed. Designed and built with AI-assisted development.",
+    tags: ["Next.js", "TypeScript", "Tailwind CSS", "React", "AI-Assisted"],
+    icon: <Code className="w-6 h-6 text-teal" />,
+    link: "https://github.com/FabioCanavarro/portfolio",
   },
   {
     title: "Iridation",
@@ -212,7 +238,7 @@ const MainBody = ({ posts }: MainBodyProps) => {
               <h3 className="text-xl font-semibold text-text">
                 Head of Web Development
               </h3>
-              <span className="text-sm text-subtext1">Present</span>
+              <span className="text-sm text-subtext1">02/07/2025 - 10/10/2025</span>
             </div>
             <p className="text-md text-blue">Arts&Legend.id (Non-Profit)</p>
             {/* //! Once the website has been fully deployed without lorem ipsum than i can include this */}
@@ -272,7 +298,11 @@ const MainBody = ({ posts }: MainBodyProps) => {
                     {project.tags.map((tag, i) => (
                       <span
                         key={i}
-                        className="text-xs bg-crust text-mauve px-2 py-1 rounded-full border border-surface2"
+                        className={`text-xs px-2 py-1 rounded-full border ${
+                          tag === "AI-Assisted"
+                            ? "bg-teal/10 text-teal border-teal/30"
+                            : "bg-crust text-mauve border-surface2"
+                        }`}
                       >
                         {tag}
                       </span>

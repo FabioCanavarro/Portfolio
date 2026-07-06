@@ -31,7 +31,7 @@ export default function Footer() {
         </Link>
       </div>
       <p className="text-[1rem] leading-6 text-surface2 mt-8">
-        Designed & Built by Fabio Canavarro
+        Designed & Built by Fabio Canavarro with AI assistance
       </p>
       <iframe
         src="https://webring.hackclub.com/embed.html"

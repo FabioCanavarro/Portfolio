@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { GitCommit, Github, Activity } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import blacklist from "@/data/repo-blacklist.json";
+import { GitHubCalendar } from "react-github-calendar";
 
 interface GithubEvent {
   type: string;
@@ -191,23 +192,27 @@ export default function GithubActivity() {
                   #345908 (Dark Green) -> #cba6f7 (Mauve).
                   Text (Grey) -> Light Grey.
                */}
-               <div className="w-full overflow-x-auto">
-                 <Image 
-                   src="https://ghchart.rshah.org/345908/FabioCanavarro" 
-                   alt="Contribution Graph"
-                   width={1000}
-                   height={300}
-                   unoptimized
-                   className="w-full min-w-[800px]"
-                   style={{ 
-                     filter: "invert(1)",
-                     borderRadius: "0.5rem"
-                   }}
-                 />
-                 <p className="text-center text-subtext1 text-sm mt-2">
-                   (Inverted for Dark Mode)
-                 </p>
-               </div>
+                <div className="w-full overflow-x-auto flex justify-center">
+                  <div className="min-w-[800px] text-text">
+                    <GitHubCalendar 
+                      username="FabioCanavarro"
+                      colorScheme="dark"
+                      theme={{
+                        dark: ["#1e2030", "#3a2d54", "#5e3e8c", "#8750c8", "#cba6f7"],
+                      }}
+                      renderBlock={(block: React.ReactElement, activity: { count: number; date: string }) => 
+                        React.cloneElement(
+                          block, 
+                          {}, 
+                          <title>{`${activity.count} contributions on ${activity.date}`}</title>
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+                <p className="text-center text-subtext1 text-sm mt-4">
+                  Hover over the squares to view daily contributions.
+                </p>
             </div>
           </div>
         </motion.div>

@@ -42,8 +42,8 @@ export default async function GalleryPage() {
       </div>
 
       {photos.length === 0 && (
-        <div className="note-block mt-8">
-          <p>No photos found. Check your Supabase database or environment variables.</p>
+        <div className="note-block mt-8 text-subtext0 bg-crust/50 border border-surface0 p-6 rounded-xl text-center">
+          <p className="text-red font-medium">Error: No photos added yet, coming soon :)</p>
         </div>
       )}
 

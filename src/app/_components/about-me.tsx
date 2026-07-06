@@ -22,7 +22,7 @@ export default function AboutMe() {
       </h2>
       <div className="space-y-4 text-subtext0 leading-relaxed bg-crust/50 p-6 rounded-xl border border-surface0 backdrop-blur-sm shadow-lg shadow-crust/50">
         <p>
-          As a 16-year-old software developer, I specialize in systems
+          As a 17-year-old software developer, I specialize in systems
           programming with a primary focus on Rust, complemented by a strong
           foundation in Python. While my passion lies with low-level
           development, I am also familiar with languages like C++, Java,
@@ -60,7 +60,7 @@ export default function AboutMe() {
                   techniques to push my code to its limits. My ambition extends to
                   building foundational technologies from the ground up, with
                   long-term goals that include developing a complete operating
-                  system, creating a feature-rich database engine named TransientDB,
+                  system, creating a feature-rich database engine named EpochDB,
                   and evolving my assembly project into a full-fledged programming
                   language. I am driven by the pursuit of solving complex problems
                   and engineering the robust, high-performance systems of the
