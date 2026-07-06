@@ -210,9 +210,6 @@ export default function GithubActivity() {
                     />
                   </div>
                 </div>
-                <p className="text-center text-subtext1 text-sm mt-4">
-                  Hover over the squares to view daily contributions.
-                </p>
             </div>
           </div>
         </motion.div>
