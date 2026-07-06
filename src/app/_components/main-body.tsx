@@ -55,6 +55,14 @@ const projects = [
     icon: <Keyboard className="w-6 h-6 text-yellow" />,
     link: "https://github.com/FabioCanavarro/custom-keyboard",
   },
+    {
+    title: "Iridation",
+    description:
+      "A custom assembly language created in Rust, designed as a foundational layer for a future programming language.",
+    tags: ["Rust", "Compilers", "Assembly"],
+    icon: <Code className="w-6 h-6 text-sapphire" />,
+    link: "https://github.com/FabioCanavarro/Irridation",
+  },
   {
     title: "NeuraLearn",
     description:
@@ -86,14 +94,6 @@ const projects = [
     tags: ["Next.js", "TypeScript", "Tailwind CSS", "React", "AI-Assisted"],
     icon: <Code className="w-6 h-6 text-teal" />,
     link: "https://github.com/FabioCanavarro/portfolio",
-  },
-  {
-    title: "Iridation",
-    description:
-      "A custom assembly language created in Rust, designed as a foundational layer for a future programming language.",
-    tags: ["Rust", "Compilers", "Assembly"],
-    icon: <Code className="w-6 h-6 text-sapphire" />,
-    link: "https://github.com/FabioCanavarro/Irridation",
   },
   {
     title: "AI & Computer Vision Projects",
