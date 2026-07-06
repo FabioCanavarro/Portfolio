@@ -282,9 +282,9 @@ const MainBody = ({ posts }: MainBodyProps) => {
               <motion.div
                 key={index}
                 variants={itemVariants}
-                className="bg-crust/50 rounded-xl border border-surface0 backdrop-blur-sm overflow-hidden transition-all duration-300 shadow-lg shadow-crust/50 hover:border-mauve/50 hover:shadow-xl hover:shadow-mauve/10 hover:-translate-y-1"
+                className="bg-crust/50 rounded-xl border border-surface0 backdrop-blur-sm overflow-hidden transition-all duration-300 shadow-lg shadow-crust/50 hover:border-mauve/50 hover:shadow-xl hover:shadow-mauve/10 hover:-translate-y-1 flex flex-col h-full"
               >
-                <div className="p-6">
+                <div className="p-6 flex flex-col flex-grow">
                   <div className="flex items-center mb-4">
                     {project.icon}
                     <h3 className="text-xl font-semibold ml-3 text-text">
@@ -312,7 +312,7 @@ const MainBody = ({ posts }: MainBodyProps) => {
                     href={project.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm font-medium text-rosewater hover:text-flamingo transition-colors duration-300 group"
+                    className="inline-flex items-center text-sm font-medium text-rosewater hover:text-flamingo transition-colors duration-300 group mt-auto pt-4"
                   >
                     View on GitHub
                     <ExternalLink className="w-4 h-4 ml-1.5 transition-transform duration-300 group-hover:translate-x-1" />
