@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import YTMusic from "ytmusic-api";
+
 
 // Global in-memory cache to prevent spamming YouTube endpoints and ensure instant loads
 const ytImageCache = new Map<string, string | null>();
@@ -67,8 +69,27 @@ export async function getYTMusicVideoId(
 ): Promise<string | null> {
   try {
     const client = await getYTMusicClient();
-    const results = await client.search(query);
 
+    // 1. Prioritize song search to get exact audio tracks
+    const songResults = await client.searchSongs(query);
+    if (songResults && songResults.length > 0) {
+      const item = songResults[0] as any;
+      if (item && item.videoId) {
+        return item.videoId;
+      }
+    }
+
+    // 2. Fallback to video search
+    const videoResults = await client.searchVideos(query);
+    if (videoResults && videoResults.length > 0) {
+      const item = videoResults[0] as any;
+      if (item && item.videoId) {
+        return item.videoId;
+      }
+    }
+
+    // 3. Fallback to general search
+    const results = await client.search(query);
     if (results && results.length > 0) {
       // Prioritize SONG type results that have a videoId, fallback to any result with videoId
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
