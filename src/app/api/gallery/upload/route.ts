@@ -154,55 +154,52 @@ export async function POST(request: NextRequest) {
         hash: photo.hash || null,
         original: photo.original || "",
         edited: photo.edited || "",
+        specific_location: photo.specific_location || "",
+        proud: photo.proud !== undefined ? photo.proud : false,
+        width: photo.width || null,
+        height: photo.height || null,
       };
 
       console.log("Saving photo:", row);
 
+      // Helper function to retry DB write without new schema columns if they don't exist in DB yet
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const executeDbWriteWithFallback = async (writeFn: (rowPayload: any) => Promise<any>) => {
+        let res = await writeFn(row);
+        
+        if (res.error && (res.error.message.includes("column") || res.error.message.includes("schema cache"))) {
+          console.warn("DB Write failed, attempting fallback query without custom fields:", res.error.message);
+          
+          // Strip new custom columns
+          const { specific_location, proud, width, height, ...legacyRow } = row;
+          res = await writeFn(legacyRow);
+          
+          // If still fails with original/edited mismatch, fallback to legacy original_url/edited_url columns
+          if (res.error && (res.error.message.includes("column") || res.error.message.includes("schema cache"))) {
+            console.warn("Second write failed, falling back to legacy url columns:", res.error.message);
+            const { original, edited, ...rest } = legacyRow;
+            const fallbackRow = {
+              ...rest,
+              original_url: original as string,
+              edited_url: edited as string,
+            };
+            res = await writeFn(fallbackRow);
+          }
+        }
+        return res;
+      };
+
       let result;
       if (photo.id) {
         // Update existing row
-        result = await supabaseAdmin
-          .from("photos")
-          .update(row)
-          .eq("id", photo.id)
-          .select();
-
-        // If schema cache mismatch, fall back to legacy original_url / edited_url columns
-        if (result.error && (result.error.message.includes("column") || result.error.message.includes("schema cache"))) {
-          console.warn("Save photo warning, retrying with fallback columns:", result.error.message);
-          const { original, edited, ...rest } = row;
-          const fallbackRow = {
-            ...rest,
-            original_url: original as string,
-            edited_url: edited as string,
-          };
-          result = await supabaseAdmin
-            .from("photos")
-            .update(fallbackRow)
-            .eq("id", photo.id)
-            .select();
-        }
+        result = await executeDbWriteWithFallback(async (payload) => 
+          await supabaseAdmin.from("photos").update(payload).eq("id", photo.id).select()
+        );
       } else {
         // Insert new row
-        result = await supabaseAdmin
-          .from("photos")
-          .insert(row)
-          .select();
-
-        // If schema cache mismatch, fall back to legacy original_url / edited_url columns
-        if (result.error && (result.error.message.includes("column") || result.error.message.includes("schema cache"))) {
-          console.warn("Save photo warning, retrying with fallback columns:", result.error.message);
-          const { original, edited, ...rest } = row;
-          const fallbackRow = {
-            ...rest,
-            original_url: original as string,
-            edited_url: edited as string,
-          };
-          result = await supabaseAdmin
-            .from("photos")
-            .insert(fallbackRow)
-            .select();
-        }
+        result = await executeDbWriteWithFallback(async (payload) => 
+          await supabaseAdmin.from("photos").insert(payload).select()
+        );
       }
 
       if (result.error) {

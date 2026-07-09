@@ -23,6 +23,10 @@ type Photo = {
   country?: string;
   published?: boolean;
   hash?: string;
+  specific_location?: string;
+  proud?: boolean;
+  width?: number;
+  height?: number;
 };
 
 interface UploadItem {
@@ -39,6 +43,10 @@ interface UploadItem {
   country: string;
   published: boolean;
   hash: string;
+  specific_location: string;
+  proud: boolean;
+  width: number;
+  height: number;
   
   // File details
   editedFile: File;
@@ -82,6 +90,22 @@ function formatDateToLocalDatetime(dateStr: string) {
     }
   } catch (e) {}
   return "";
+}
+
+// Helper to extract image natural resolution dimensions (width and height)
+function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => {
+      resolve({ width: 0, height: 0 });
+      URL.revokeObjectURL(img.src);
+    };
+  });
 }
 
 // Helper to resize image and convert to lightweight base64 for AI Vision analysis
@@ -164,6 +188,7 @@ export default function AdminGalleryClient() {
   const [showAiSettings, setShowAiSettings] = useState(false);
   const [aiLoadingMap, setAiLoadingMap] = useState<Record<string, boolean>>({});
   const [bulkAiLoading, setBulkAiLoading] = useState(false);
+  const [aiBatchSize, setAiBatchSize] = useState<number>(10);
 
   // State for existing photos management
   const [existingPhotos, setExistingPhotos] = useState<Photo[]>([]);
@@ -439,6 +464,8 @@ export default function AdminGalleryClient() {
         } else {
           currentBatchHashes.add(hash);
           
+          const dimensions = await getImageDimensions(file);
+          
           const tempId = Math.random().toString(36).substring(2, 9);
           const formattedTitle = baseName
             .replace(/[_\-]/g, " ")
@@ -468,7 +495,11 @@ export default function AdminGalleryClient() {
             error: null,
             previewUrl: URL.createObjectURL(file),
             originalPreviewUrl: matchedOriginalFile ? URL.createObjectURL(matchedOriginalFile) : "",
-            hash
+            hash,
+            specific_location: "",
+            proud: false,
+            width: dimensions.width,
+            height: dimensions.height
           };
           
           validItems.push(item);
@@ -542,7 +573,7 @@ export default function AdminGalleryClient() {
   };
 
   // Duplicate Resolution Modal Actions
-  const resolveDuplicate = (upload: boolean) => {
+  const resolveDuplicate = async (upload: boolean) => {
     const current = pendingDuplicates[0];
     if (!current) return;
 
@@ -550,6 +581,8 @@ export default function AdminGalleryClient() {
       const extIndex = current.file.name.lastIndexOf(".");
       const baseName = extIndex !== -1 ? current.file.name.substring(0, extIndex) : current.file.name;
       const formattedTitle = baseName.replace(/[_\-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+      const dimensions = await getImageDimensions(current.file);
 
       const item: UploadItem = {
         id: Math.random().toString(36).substring(2, 9),
@@ -575,7 +608,11 @@ export default function AdminGalleryClient() {
         error: null,
         previewUrl: current.previewUrl,
         originalPreviewUrl: current.originalFile ? URL.createObjectURL(current.originalFile) : "",
-        hash: current.hash
+        hash: current.hash,
+        specific_location: "",
+        proud: false,
+        width: dimensions.width,
+        height: dimensions.height,
       };
       
       setUploadQueue((prev) => [...prev, item]);
@@ -591,13 +628,18 @@ export default function AdminGalleryClient() {
     setPendingDuplicates([]);
   };
 
-  const uploadAllDuplicates = () => {
-    const itemsToAdd = pendingDuplicates.map((current) => {
+  const uploadAllDuplicates = async () => {
+    setQueueLoading(true);
+    const itemsToAdd: UploadItem[] = [];
+    
+    for (const current of pendingDuplicates) {
       const extIndex = current.file.name.lastIndexOf(".");
       const baseName = extIndex !== -1 ? current.file.name.substring(0, extIndex) : current.file.name;
       const formattedTitle = baseName.replace(/[_\-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       
-      return {
+      const dimensions = await getImageDimensions(current.file);
+      
+      itemsToAdd.push({
         id: Math.random().toString(36).substring(2, 9),
         fileName: current.file.name,
         title: formattedTitle,
@@ -621,13 +663,18 @@ export default function AdminGalleryClient() {
         error: null,
         previewUrl: current.previewUrl,
         originalPreviewUrl: current.originalFile ? URL.createObjectURL(current.originalFile) : "",
-        hash: current.hash
-      };
-    });
+        hash: current.hash,
+        specific_location: "",
+        proud: false,
+        width: dimensions.width,
+        height: dimensions.height,
+      });
+    }
 
     setUploadQueue((prev) => [...prev, ...itemsToAdd]);
     triggerExifAndGeocode(itemsToAdd);
     setPendingDuplicates([]);
+    setQueueLoading(false);
   };
 
   // Swapping original and edited slot references
@@ -743,8 +790,10 @@ export default function AdminGalleryClient() {
     const unsavedItems = uploadQueue.filter(q => !q.saved && !q.uploading);
     if (unsavedItems.length === 0) return;
 
+    const batchToProcess = unsavedItems.slice(0, aiBatchSize);
+
     setBulkAiLoading(true);
-    for (const item of unsavedItems) {
+    for (const item of batchToProcess) {
       await generateAiMetadata(item.id);
     }
     setBulkAiLoading(false);
@@ -887,6 +936,10 @@ export default function AdminGalleryClient() {
             city: item.city,
             province: item.province,
             country: item.country,
+            specific_location: item.specific_location,
+            proud: item.proud,
+            width: item.width,
+            height: item.height,
             published: item.published,
             hash: item.hash
           }
@@ -980,6 +1033,37 @@ export default function AdminGalleryClient() {
           prev.map((p) => (p.id === photo.id ? photo : p))
         );
         alert("Failed to update publication status.");
+      }
+    } catch (e) {
+      setExistingPhotos((prev) =>
+        prev.map((p) => (p.id === photo.id ? photo : p))
+      );
+      alert("Failed to connect to server.");
+    }
+  };
+
+  const handleToggleProud = async (photo: Photo) => {
+    const updatedPhoto = { ...photo, proud: !photo.proud };
+    
+    setExistingPhotos((prev) =>
+      prev.map((p) => (p.id === photo.id ? updatedPhoto : p))
+    );
+
+    try {
+      const res = await fetch("/api/gallery/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-photo",
+          photo: updatedPhoto
+        })
+      });
+
+      if (!res.ok) {
+        setExistingPhotos((prev) =>
+          prev.map((p) => (p.id === photo.id ? photo : p))
+        );
+        alert("Failed to update proud status.");
       }
     } catch (e) {
       setExistingPhotos((prev) =>
@@ -1227,14 +1311,31 @@ export default function AdminGalleryClient() {
                 </h3>
                 
                 <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={handleBulkAiAutofill}
-                    disabled={bulkAiLoading || uploadQueue.some((q) => q.uploading)}
-                    className="flex items-center gap-2 bg-mauve/20 border border-mauve/30 text-mauve font-semibold px-4 py-2 rounded-xl hover:bg-mauve/30 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-sm"
-                  >
-                    {bulkAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                    <span>AI Auto-Fill All</span>
-                  </button>
+                  <div className="flex items-center bg-surface0 border border-surface1 rounded-xl px-2.5 py-1 gap-1">
+                    <span className="text-[10px] uppercase font-bold text-subtext1 tracking-wider pr-1 pl-1">Batch:</span>
+                    <select
+                      value={aiBatchSize}
+                      onChange={(e) => setAiBatchSize(Number(e.target.value))}
+                      className="bg-transparent border-none text-xs text-text font-bold outline-none cursor-pointer pr-1"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={30}>30</option>
+                      <option value={40}>40</option>
+                      <option value={50}>50</option>
+                    </select>
+                    
+                    <button
+                      onClick={handleBulkAiAutofill}
+                      disabled={bulkAiLoading || uploadQueue.some((q) => q.uploading)}
+                      className="flex items-center gap-1.5 bg-mauve/20 border border-mauve/10 text-mauve font-bold px-3 py-1 rounded-lg hover:bg-mauve/30 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-xs"
+                      title={`Analyze the next ${aiBatchSize} photos with Vision AI`}
+                    >
+                      {bulkAiLoading ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                      <span>Auto-Fill Batch</span>
+                    </button>
+                  </div>
 
                   <button
                     onClick={clearQueue}
@@ -1282,8 +1383,8 @@ export default function AdminGalleryClient() {
 
                     {/* Thumbnail preview details */}
                     <div className="w-full md:w-56 shrink-0 flex flex-col gap-3">
-                      <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-surface0 border border-surface1 relative">
-                        <img src={item.previewUrl} alt={item.fileName} className="w-full h-full object-cover" />
+                      <div className="w-full rounded-xl overflow-hidden bg-surface0 border border-surface1 relative flex items-center justify-center min-h-[150px] max-h-[220px]">
+                        <img src={item.previewUrl} alt={item.fileName} className="w-full h-auto max-h-[220px] object-contain" />
                         
                         {/* Queue Item Status Overlays */}
                         {!item.exifParsed && (
@@ -1476,6 +1577,17 @@ export default function AdminGalleryClient() {
                               ))}
                             </div>
                           )}
+                          {/* Specific Location / Anecdote */}
+                          <div className="mt-3.5">
+                            <label className="text-xs font-semibold text-subtext1 mb-1 block">Specific Location / Anecdote</label>
+                            <input
+                              type="text"
+                              value={item.specific_location || ""}
+                              onChange={(e) => updateQueueItem(item.id, { specific_location: e.target.value })}
+                              className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                              placeholder="e.g. Eiffel Tower, top floor at sunset..."
+                            />
+                          </div>
                         </div>
 
                         <div>
@@ -1489,16 +1601,30 @@ export default function AdminGalleryClient() {
                           />
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-surface0/50">
-                          <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                              type="checkbox"
-                              checked={item.published}
-                              onChange={(e) => updateQueueItem(item.id, { published: e.target.checked })}
-                              className="w-4 h-4 accent-mauve rounded border-surface1"
-                            />
-                            <span className="text-xs font-semibold text-subtext1">Publish Immediately</span>
-                          </label>
+                        <div className="flex items-center justify-between pt-2 border-t border-surface0/50 gap-4 flex-wrap">
+                          <div className="flex flex-col gap-1">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={item.published}
+                                onChange={(e) => updateQueueItem(item.id, { published: e.target.checked })}
+                                className="w-4 h-4 accent-mauve rounded border-surface1"
+                              />
+                              <span className="text-xs font-semibold text-subtext1">Publish Immediately</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={item.proud || false}
+                                onChange={(e) => updateQueueItem(item.id, { proud: e.target.checked })}
+                                className="w-4 h-4 accent-mauve rounded border-surface1"
+                              />
+                              <span className="text-xs font-semibold text-text flex items-center gap-1">
+                                ✨ Mark as Proud Shot
+                              </span>
+                            </label>
+                          </div>
 
                           <div className="flex gap-2">
                             <button
@@ -1691,8 +1817,22 @@ export default function AdminGalleryClient() {
                     </span>
                   </div>
 
-                  <div className="aspect-[4/3] bg-surface0 border-b border-surface0 relative">
-                    <img src={photo.edited} alt={photo.title} className="w-full h-full object-cover" />
+                  <div className="absolute top-3 right-3 z-10">
+                    <button
+                      onClick={() => handleToggleProud(photo)}
+                      className={`p-1.5 rounded-full border backdrop-blur-md transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                        photo.proud
+                          ? "bg-yellow/20 text-yellow border-yellow/40 shadow-lg shadow-yellow/10"
+                          : "bg-surface0/40 text-subtext1 border-surface1/60 hover:text-text hover:bg-surface0/60"
+                      }`}
+                      title={photo.proud ? "Remove from Proud Shots" : "Mark as Proud Shot"}
+                    >
+                      <Sparkles size={12} className={photo.proud ? "fill-yellow" : ""} />
+                    </button>
+                  </div>
+
+                  <div className="w-full bg-surface0 border-b border-surface0 relative flex items-center justify-center min-h-[140px] max-h-[220px] overflow-hidden">
+                    <img src={photo.edited} alt={photo.title} className="w-full h-auto max-h-[220px] object-contain" />
                   </div>
 
                   <div className="p-4 flex-1 flex flex-col justify-between">
@@ -1997,6 +2137,17 @@ export default function AdminGalleryClient() {
                     </div>
 
                     <div>
+                      <label className="text-xs font-semibold text-subtext1 mb-1 block">Specific Location / Anecdote</label>
+                      <input
+                        type="text"
+                        value={editingPhoto.specific_location || ""}
+                        onChange={(e) => setEditingPhoto({ ...editingPhoto, specific_location: e.target.value })}
+                        className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
+                        placeholder="e.g. Eiffel Tower, top floor at sunset..."
+                      />
+                    </div>
+
+                    <div>
                       <label className="text-xs font-semibold text-subtext1 mb-1 block">Tags (comma-separated)</label>
                       <input
                         type="text"
@@ -2010,17 +2161,32 @@ export default function AdminGalleryClient() {
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2">
-                      <input
-                        type="checkbox"
-                        id="modal-published"
-                        checked={editingPhoto.published || false}
-                        onChange={(e) => setEditingPhoto({ ...editingPhoto, published: e.target.checked })}
-                        className="w-4 h-4 accent-mauve rounded border-surface1"
-                      />
-                      <label htmlFor="modal-published" className="text-xs font-semibold text-subtext1 cursor-pointer select-none">
-                        Published (visible in gallery)
-                      </label>
+                    <div className="flex flex-col gap-2 pt-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="modal-published"
+                          checked={editingPhoto.published || false}
+                          onChange={(e) => setEditingPhoto({ ...editingPhoto, published: e.target.checked })}
+                          className="w-4 h-4 accent-mauve rounded border-surface1"
+                        />
+                        <label htmlFor="modal-published" className="text-xs font-semibold text-subtext1 cursor-pointer select-none">
+                          Published (visible in gallery)
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="modal-proud"
+                          checked={editingPhoto.proud || false}
+                          onChange={(e) => setEditingPhoto({ ...editingPhoto, proud: e.target.checked })}
+                          className="w-4 h-4 accent-mauve rounded border-surface1"
+                        />
+                        <label htmlFor="modal-proud" className="text-xs font-semibold text-text cursor-pointer select-none flex items-center gap-1">
+                          ✨ Mark as Proud Shot (Featured)
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>

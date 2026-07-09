@@ -18,6 +18,8 @@ type Photo = {
   province?: string;
   country?: string;
   published?: boolean;
+  specific_location?: string;
+  proud?: boolean;
 };
 
 export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: () => void }) {
@@ -97,10 +99,10 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
                   })}
                 </span>
               )}
-              {photo.date && (photo.city || photo.country) && <span>•</span>}
-              {(photo.city || photo.country) && (
-                <span className="text-mauve font-medium" title={[photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
-                  📍 {[photo.city, photo.country].filter(Boolean).join(", ")}
+              {photo.date && (photo.city || photo.country || photo.specific_location) && <span>•</span>}
+              {(photo.city || photo.country || photo.specific_location) && (
+                <span className="text-mauve font-medium" title={[photo.specific_location, photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
+                  📍 {photo.specific_location || [photo.city, photo.country].filter(Boolean).join(", ")}
                 </span>
               )}
             </div>
@@ -110,6 +112,13 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
             <p className="leading-relaxed font-medium text-text bg-surface0/30 p-4 rounded-xl border border-surface0/50">
               &quot;{photo.description}&quot;
             </p>
+
+            {photo.specific_location && (
+              <div className="bg-surface0/20 p-3 rounded-xl border border-surface0/60 text-xs font-mono flex flex-col gap-1.5">
+                <span className="font-bold text-mauve uppercase tracking-widest text-[8px]">Specific Location Note</span>
+                <span>{photo.specific_location}</span>
+              </div>
+            )}
             
             <div>
               <h4 className="text-xs uppercase tracking-wider font-bold text-mauve mb-2">Backstory</h4>

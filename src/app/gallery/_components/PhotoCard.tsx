@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { Sparkles } from "lucide-react";
 
 type Photo = {
   id: string;
@@ -17,6 +18,10 @@ type Photo = {
   province?: string;
   country?: string;
   published?: boolean;
+  specific_location?: string;
+  proud?: boolean;
+  width?: number;
+  height?: number;
 };
 
 export default function PhotoCard({ 
@@ -29,7 +34,16 @@ export default function PhotoCard({
   originalRatio?: boolean;
 }) {
   const [isEdited, setIsEdited] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const currentImage = isEdited ? photo.edited : photo.original;
+
+  useEffect(() => {
+    setImageLoaded(false);
+  }, [currentImage]);
+
+  const hasResolution = photo.width && photo.height;
+  const imageAspectRatio = hasResolution ? `${photo.width} / ${photo.height}` : "4 / 3";
+  const containerStyle = originalRatio && hasResolution ? { aspectRatio: imageAspectRatio } : {};
 
   return (
     <motion.div
@@ -77,11 +91,21 @@ export default function PhotoCard({
         </div>
 
         {/* Image Container */}
-        <div className={`relative w-full overflow-hidden bg-black/20 ${originalRatio ? "h-auto" : "aspect-[4/3]"}`}>
+        <div 
+          className={`relative w-full overflow-hidden bg-black/20 ${originalRatio ? "" : "aspect-[4/3]"}`}
+          style={containerStyle}
+        >
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-surface0/60 animate-pulse flex items-center justify-center z-10">
+              <Sparkles className="text-mauve/25 animate-pulse" size={24} />
+            </div>
+          )}
+          
           <motion.img
             key={currentImage}
             src={currentImage}
             alt={photo.title}
+            onLoad={() => setImageLoaded(true)}
             className={`w-full transition-transform duration-700 ease-out group-hover:scale-105 ${originalRatio ? "h-auto" : "h-full object-cover"}`}
             initial={{ opacity: 0.8 }}
             animate={{ opacity: 1 }}
@@ -117,9 +141,9 @@ export default function PhotoCard({
                   {new Date(photo.date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                 </span>
               )}
-              {(photo.city || photo.country) && (
-                <span className="text-[10px] text-mauve/80 font-mono mt-0.5 truncate max-w-[120px]" title={[photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
-                  📍 {[photo.city, photo.country].filter(Boolean).join(", ")}
+              {(photo.city || photo.country || photo.specific_location) && (
+                <span className="text-[10px] text-mauve/80 font-mono mt-0.5 truncate max-w-[120px]" title={[photo.specific_location, photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
+                  📍 {photo.specific_location || [photo.city, photo.country].filter(Boolean).join(", ")}
                 </span>
               )}
             </div>

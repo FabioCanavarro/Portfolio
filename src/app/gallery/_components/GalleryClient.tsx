@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X, Layers } from "lucide-react";
+import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X, Layers, Sparkles } from "lucide-react";
 import PhotoCard from "./PhotoCard";
 import Lightbox from "./Lightbox";
 
@@ -20,6 +20,8 @@ type Photo = {
   province?: string;
   country?: string;
   published?: boolean;
+  specific_location?: string;
+  proud?: boolean;
 };
 
 type Props = {
@@ -27,6 +29,75 @@ type Props = {
 };
 
 type SortOption = "date-desc" | "date-asc" | "city" | "province" | "country" | "title";
+
+interface MasonryGridProps {
+  photos: Photo[];
+  onPhotoClick: (photo: Photo) => void;
+  originalRatio: boolean;
+}
+
+function MasonryGrid({ photos, onPhotoClick, originalRatio }: MasonryGridProps) {
+  const { cols3, cols2 } = useMemo(() => {
+    const cols3: Photo[][] = [[], [], []];
+    const cols2: Photo[][] = [[], []];
+    photos.forEach((photo, idx) => {
+      cols3[idx % 3].push(photo);
+      cols2[idx % 2].push(photo);
+    });
+    return { cols3, cols2 };
+  }, [photos]);
+
+  if (!originalRatio) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {photos.map((photo) => (
+          <div key={photo.id} className="w-full">
+            <PhotoCard photo={photo} onClick={() => onPhotoClick(photo)} originalRatio={false} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {/* Desktop Masonry (3 cols) */}
+      <div className="hidden lg:grid grid-cols-3 gap-8 items-start">
+        {cols3.map((colPhotos, colIdx) => (
+          <div key={`col3-${colIdx}`} className="flex flex-col gap-8">
+            {colPhotos.map((photo) => (
+              <div key={photo.id} className="w-full">
+                <PhotoCard photo={photo} onClick={() => onPhotoClick(photo)} originalRatio={true} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Tablet Masonry (2 cols) */}
+      <div className="hidden md:grid lg:hidden grid-cols-2 gap-8 items-start">
+        {cols2.map((colPhotos, colIdx) => (
+          <div key={`col2-${colIdx}`} className="flex flex-col gap-8">
+            {colPhotos.map((photo) => (
+              <div key={photo.id} className="w-full">
+                <PhotoCard photo={photo} onClick={() => onPhotoClick(photo)} originalRatio={true} />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Mobile Masonry (1 col) */}
+      <div className="grid md:hidden grid-cols-1 gap-8">
+        {photos.map((photo) => (
+          <div key={photo.id} className="w-full">
+            <PhotoCard photo={photo} onClick={() => onPhotoClick(photo)} originalRatio={true} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
 
 export default function GalleryClient({ photos }: Props) {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -36,6 +107,11 @@ export default function GalleryClient({ photos }: Props) {
   const [selectedTag, setSelectedTag] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
   const [originalRatio, setOriginalRatio] = useState(true);
+
+  const proudPhotos = useMemo(() => {
+    // Only display active published photos in the proud section, limit to 10
+    return photos.filter((p) => p.published && p.proud).slice(0, 10);
+  }, [photos]);
 
   // Sync state from client localStorage after hydration to prevent SSR mismatch
   useEffect(() => {
@@ -235,6 +311,25 @@ export default function GalleryClient({ photos }: Props) {
         </div>
       </div>
 
+      {/* Proud Selection / Featured Section */}
+      {proudPhotos.length > 0 && (
+        <div className="space-y-6 bg-surface0/10 p-6 rounded-3xl border border-surface0/45 relative overflow-hidden">
+          <div className="absolute -top-12 -left-12 w-48 h-48 bg-yellow/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex items-center gap-3">
+            <Sparkles className="text-yellow fill-yellow animate-pulse" size={20} />
+            <h2 className="text-xl font-bold text-text">Featured Masterpieces</h2>
+            <div className="flex-1 h-px bg-surface0/45" />
+            <span className="text-[10px] text-subtext0 font-mono tracking-widest uppercase">Proud Selection</span>
+          </div>
+
+          <MasonryGrid
+            photos={proudPhotos}
+            onPhotoClick={setSelectedPhoto}
+            originalRatio={originalRatio}
+          />
+        </div>
+      )}
+
       {/* Grid Display */}
       {groupedPhotos.length === 0 ? (
         <div className="text-center py-20 bg-crust/20 border border-surface0/50 rounded-2xl">
@@ -254,28 +349,13 @@ export default function GalleryClient({ photos }: Props) {
               </motion.div>
               
               {/* Group Photos */}
-              <motion.div 
-                layout 
-                className={originalRatio ? "columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"}
-              >
+              <motion.div layout>
                 <AnimatePresence mode="popLayout">
-                  {group.photos.map((photo) => (
-                    <motion.div
-                      layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.3 }}
-                      key={photo.id}
-                      className={originalRatio ? "break-inside-avoid inline-block w-full mb-8" : "w-full"}
-                    >
-                      <PhotoCard
-                        photo={photo}
-                        onClick={() => setSelectedPhoto(photo)}
-                        originalRatio={originalRatio}
-                      />
-                    </motion.div>
-                  ))}
+                  <MasonryGrid
+                    photos={group.photos}
+                    onPhotoClick={setSelectedPhoto}
+                    originalRatio={originalRatio}
+                  />
                 </AnimatePresence>
               </motion.div>
             </motion.div>
