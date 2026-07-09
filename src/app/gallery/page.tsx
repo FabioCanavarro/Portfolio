@@ -6,7 +6,7 @@ export const metadata = {
   description: "A showcase of my photography over the years.",
 };
 
-export const revalidate = 60; // Revalidate the page every 60 seconds
+export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
   // Fetch from Supabase (only published photos)
