@@ -20,7 +20,14 @@ export default async function GalleryPage() {
     console.error("Error fetching photos:", error);
   }
 
-  const photos = photographyData || [];
+  const photos = (photographyData || []).map((photo) => {
+    const raw = photo as unknown as Record<string, unknown>;
+    return {
+      ...photo,
+      original: (raw.original as string) || (raw.original_url as string) || "",
+      edited: (raw.edited as string) || (raw.edited_url as string) || "",
+    };
+  }) as unknown as Parameters<typeof GalleryClient>[0]["photos"];
 
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">

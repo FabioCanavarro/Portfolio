@@ -60,7 +60,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ photos });
+    // Map legacy column names to avoid frontend breaks
+    const mappedPhotos = (photos || []).map((p) => {
+      const dbPhoto = p as Record<string, unknown>;
+      return {
+        ...dbPhoto,
+        original: (dbPhoto.original as string) || (dbPhoto.original_url as string) || "",
+        edited: (dbPhoto.edited as string) || (dbPhoto.edited_url as string) || "",
+      };
+    });
+
+    return NextResponse.json({ photos: mappedPhotos });
   } catch (error) {
     console.error("GET error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
@@ -130,20 +140,20 @@ export async function POST(request: NextRequest) {
       }
 
       // Format row for database insertion
-      const row = {
+      const row: Record<string, unknown> = {
         title: photo.title || "Untitled",
         description: photo.description || "",
         backstory: photo.backstory || "",
         date: photo.date || new Date().toISOString(),
         year: photo.year || new Date().getFullYear().toString(),
         tags: Array.isArray(photo.tags) ? photo.tags : [],
-        original: photo.original || "",
-        edited: photo.edited || "",
         city: photo.city || "",
         province: photo.province || "",
         country: photo.country || "",
         published: photo.published !== undefined ? photo.published : false,
         hash: photo.hash || null,
+        original: photo.original || "",
+        edited: photo.edited || "",
       };
 
       console.log("Saving photo:", row);
@@ -156,12 +166,43 @@ export async function POST(request: NextRequest) {
           .update(row)
           .eq("id", photo.id)
           .select();
+
+        // If schema cache mismatch, fall back to legacy original_url / edited_url columns
+        if (result.error && (result.error.message.includes("column") || result.error.message.includes("schema cache"))) {
+          console.warn("Save photo warning, retrying with fallback columns:", result.error.message);
+          const { original, edited, ...rest } = row;
+          const fallbackRow = {
+            ...rest,
+            original_url: original as string,
+            edited_url: edited as string,
+          };
+          result = await supabaseAdmin
+            .from("photos")
+            .update(fallbackRow)
+            .eq("id", photo.id)
+            .select();
+        }
       } else {
         // Insert new row
         result = await supabaseAdmin
           .from("photos")
           .insert(row)
           .select();
+
+        // If schema cache mismatch, fall back to legacy original_url / edited_url columns
+        if (result.error && (result.error.message.includes("column") || result.error.message.includes("schema cache"))) {
+          console.warn("Save photo warning, retrying with fallback columns:", result.error.message);
+          const { original, edited, ...rest } = row;
+          const fallbackRow = {
+            ...rest,
+            original_url: original as string,
+            edited_url: edited as string,
+          };
+          result = await supabaseAdmin
+            .from("photos")
+            .insert(fallbackRow)
+            .select();
+        }
       }
 
       if (result.error) {
@@ -169,7 +210,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.error.message }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, photo: result.data[0] });
+      const savedItem = result.data[0] as Record<string, unknown>;
+      const mappedSavedItem = {
+        ...savedItem,
+        original: (savedItem.original as string) || (savedItem.original_url as string) || "",
+        edited: (savedItem.edited as string) || (savedItem.edited_url as string) || "",
+      };
+
+      return NextResponse.json({ success: true, photo: mappedSavedItem });
     }
 
     // ACTION: delete-photo

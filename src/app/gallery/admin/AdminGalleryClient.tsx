@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Upload, Check, AlertCircle, Trash2, Edit, Save, Lock, LogOut, 
@@ -189,10 +189,48 @@ export default function AdminGalleryClient() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated && activeTab === "manage") {
+    if (isAuthenticated) {
       fetchExistingPhotos();
     }
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated]);
+
+  // Extract unique locations from existing photos for quick-fill suggestions
+  const recentLocations = useMemo(() => {
+    const locMap = new Map<string, { city: string; province: string; country: string; display: string; count: number }>();
+    existingPhotos.forEach(p => {
+      const city = (p.city || "").trim();
+      const province = (p.province || "").trim();
+      const country = (p.country || "").trim();
+      if (city || province || country) {
+        const parts = [city, province, country].filter(Boolean);
+        const display = parts.join(", ");
+        const key = parts.map(x => x.toLowerCase()).join("|");
+        const existing = locMap.get(key);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          locMap.set(key, { city, province, country, display, count: 1 });
+        }
+      }
+    });
+    return Array.from(locMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [existingPhotos]);
+
+  const applyLocationToAll = (city: string, province: string, country: string) => {
+    if (!confirm(`Are you sure you want to apply "${[city, province, country].filter(Boolean).join(", ")}" to all items in the queue?`)) {
+      return;
+    }
+    setUploadQueue(prev =>
+      prev.map(item => ({
+        ...item,
+        city,
+        province,
+        country
+      }))
+    );
+  };
 
   const checkAuth = async () => {
     try {
@@ -1215,7 +1253,7 @@ export default function AdminGalleryClient() {
 
               {/* Upload queue forms */}
               <div className="space-y-8">
-                {uploadQueue.map((item) => (
+                {uploadQueue.map((item, index) => (
                   <div
                     key={item.id}
                     className="bg-crust/50 border border-surface0/70 p-6 rounded-2xl flex flex-col md:flex-row gap-6 relative overflow-hidden transition-colors"
@@ -1356,9 +1394,40 @@ export default function AdminGalleryClient() {
 
                         {/* Location Details (Country, Province, City) */}
                         <div>
-                          <label className="text-xs font-semibold text-subtext1 mb-1 block flex items-center gap-1">
-                            <MapPin size={12} className="text-mauve" /> Location Details
-                          </label>
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-xs font-semibold text-subtext1 flex items-center gap-1">
+                              <MapPin size={12} className="text-mauve" /> Location Details
+                            </label>
+                            <div className="flex gap-2 text-[10px]">
+                              {index > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const prevItem = uploadQueue[index - 1];
+                                    updateQueueItem(item.id, {
+                                      city: prevItem.city,
+                                      province: prevItem.province,
+                                      country: prevItem.country
+                                    });
+                                  }}
+                                  className="text-mauve hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0"
+                                  title="Copy location from the photo above"
+                                >
+                                  📋 Copy previous
+                                </button>
+                              )}
+                              {(item.city || item.province || item.country) && (
+                                <button
+                                  type="button"
+                                  onClick={() => applyLocationToAll(item.city, item.province, item.country)}
+                                  className="text-mauve hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0"
+                                  title="Apply this location to all pending photos in the queue"
+                                >
+                                  🌍 Apply to all
+                                </button>
+                              )}
+                            </div>
+                          </div>
                           <div className="grid grid-cols-3 gap-2">
                             <input
                               type="text"
@@ -1382,6 +1451,28 @@ export default function AdminGalleryClient() {
                               placeholder="Country"
                             />
                           </div>
+
+                          {/* Quick fill history locations */}
+                          {recentLocations.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1 items-center">
+                              <span className="text-[10px] text-subtext0">Quick fill:</span>
+                              {recentLocations.map((loc, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => updateQueueItem(item.id, {
+                                    city: loc.city,
+                                    province: loc.province,
+                                    country: loc.country
+                                  })}
+                                  className="text-[9px] bg-surface0 hover:bg-surface1 text-text border border-surface1 hover:border-surface2 px-1.5 py-0.5 rounded transition-all cursor-pointer"
+                                  title={`Click to fill: ${loc.display}`}
+                                >
+                                  {loc.display}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         <div>
