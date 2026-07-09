@@ -35,12 +35,16 @@ export default function GalleryClient({ photos }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
-  const [originalRatio, setOriginalRatio] = useState(false);
+  const [originalRatio, setOriginalRatio] = useState(true);
 
   // Sync state from client localStorage after hydration to prevent SSR mismatch
   useEffect(() => {
-    const saved = localStorage.getItem("gallery_original_ratio") === "true";
-    setOriginalRatio(saved);
+    const saved = localStorage.getItem("gallery_original_ratio");
+    if (saved !== null) {
+      setOriginalRatio(saved === "true");
+    } else {
+      setOriginalRatio(true);
+    }
   }, []);
 
   const handleToggleOriginalRatio = () => {
