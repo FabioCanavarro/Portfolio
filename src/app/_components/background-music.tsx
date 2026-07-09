@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Music } from "lucide-react";
+import { Play, Pause, Music, Volume1, Volume2, VolumeX } from "lucide-react";
 
 type TrackInfo = {
   title: string;
@@ -18,6 +18,10 @@ export default function BackgroundMusic() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMutedByUser, setIsMutedByUser] = useState(false);
   const [nowPlaying, setNowPlaying] = useState<TrackInfo | null>(null);
+  
+  // Volume states
+  const [volume, setVolume] = useState(50);
+  const [prevVolume, setPrevVolume] = useState(50);
 
   // 1. Check Last.fm current scrobble status
   const checkNowPlaying = async () => {
@@ -48,30 +52,26 @@ export default function BackgroundMusic() {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Initialize audio settings and interaction-based autoplay fallback
+  // 3. Initialize settings from localStorage (muted, volume)
   useEffect(() => {
     const savedMuted = localStorage.getItem("music_muted_by_user") === "true";
     setIsMutedByUser(savedMuted);
 
-    const audio = audioRef.current;
-    if (audio) {
-      audio.volume = 0.1; // 10% volume
-    }
+    const savedVolume = localStorage.getItem("music_volume");
+    const initialVolume = savedVolume !== null ? Number(savedVolume) : 50;
+    setVolume(initialVolume);
+    setPrevVolume(initialVolume > 0 ? initialVolume : 50);
 
     if (savedMuted) {
       return;
     }
 
     // Try autoplay
-    const attemptPlay = () => {
-      setIsPlaying(true);
-    };
+    setIsPlaying(true);
 
     const startPlayback = () => {
       setIsPlaying(true);
     };
-
-    attemptPlay();
 
     window.addEventListener("click", startPlayback, { once: true });
     window.addEventListener("keydown", startPlayback, { once: true });
@@ -133,7 +133,7 @@ export default function BackgroundMusic() {
         },
         events: {
           onReady: (event: any) => {
-            event.target.setVolume(10); // 10% volume in YT (0-100)
+            event.target.setVolume(volume); // set to current volume level
             if (isPlaying && !isMutedByUser) {
               event.target.playVideo();
             }
@@ -159,7 +159,19 @@ export default function BackgroundMusic() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nowPlaying?.videoId]);
 
-  // 6. Coordinate playback states between Local Audio and YouTube
+  // 6. Sync volume changes directly to active players
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume / 100;
+    }
+    if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === "function") {
+      try {
+        ytPlayerRef.current.setVolume(volume);
+      } catch (e) {}
+    }
+  }, [volume]);
+
+  // 7. Coordinate playback states between Local Audio and YouTube
   useEffect(() => {
     const audio = audioRef.current;
     const ytPlayer = ytPlayerRef.current;
@@ -174,7 +186,6 @@ export default function BackgroundMusic() {
         if (ytPlayer && typeof ytPlayer.playVideo === "function") {
           try {
             ytPlayer.playVideo();
-            ytPlayer.setVolume(10); // 10% volume
           } catch (e) {}
         }
       } else {
@@ -213,18 +224,35 @@ export default function BackgroundMusic() {
     }
   };
 
+  const handleVolumeChange = (val: number) => {
+    setVolume(val);
+    localStorage.setItem("music_volume", String(val));
+    if (val > 0) {
+      setPrevVolume(val);
+    }
+  };
+
+  const toggleMute = () => {
+    if (volume > 0) {
+      setPrevVolume(volume);
+      handleVolumeChange(0);
+    } else {
+      handleVolumeChange(prevVolume > 0 ? prevVolume : 50);
+    }
+  };
+
   return (
     <>
       <audio ref={audioRef} src="/jazz.mp3" loop preload="auto" />
       <div id="yt-player-placeholder" className="hidden" />
 
       {/* Floating Controller Widget */}
-      <div className="fixed bottom-6 right-6 z-50 select-none pointer-events-auto">
-        <button
-          type="button"
+      <div className="fixed bottom-6 right-6 z-50 select-none pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 bg-crust/95 border border-surface0/60 hover:border-surface1 text-text rounded-full shadow-2xl backdrop-blur-md transition-all duration-300 group">
+        
+        {/* Play/Pause Toggle Action Area */}
+        <div 
           onClick={togglePlay}
-          className="flex items-center gap-2.5 px-4 py-2.5 bg-crust/95 hover:bg-surface0 border border-surface0/60 hover:border-surface1 text-text rounded-full shadow-2xl backdrop-blur-md transition-all active:scale-[0.98] group cursor-pointer"
-          title={isPlaying ? "Mute Background Music" : "Play Background Music"}
+          className="flex items-center gap-2.5 cursor-pointer"
         >
           {/* Animated visualizer OR spinning album art cover */}
           {nowPlaying?.image ? (
@@ -263,7 +291,38 @@ export default function BackgroundMusic() {
               <Play size={10} className="text-subtext1 fill-subtext1 translate-x-[0.5px]" />
             )}
           </span>
-        </button>
+        </div>
+
+        {/* Vertical Separator */}
+        <div className="w-px h-5 bg-surface0/80 shrink-0" />
+
+        {/* Volume controls */}
+        <div className="flex items-center gap-1.5 group/volume shrink-0">
+          <button
+            type="button"
+            onClick={toggleMute}
+            className="p-1 rounded-full hover:bg-surface0 text-subtext1 hover:text-text transition-colors cursor-pointer shrink-0"
+            title={volume === 0 ? "Unmute" : "Mute"}
+          >
+            {volume === 0 ? (
+              <VolumeX size={12} className="text-red" />
+            ) : volume < 40 ? (
+              <Volume1 size={12} className="text-subtext1" />
+            ) : (
+              <Volume2 size={12} className="text-mauve" />
+            )}
+          </button>
+          
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={volume}
+            onChange={(e) => handleVolumeChange(Number(e.target.value))}
+            className="w-0 group-hover/volume:w-16 h-1 bg-surface0 rounded-lg appearance-none cursor-pointer transition-all duration-300 outline-none accent-mauve hover:bg-surface1"
+            title="Adjust volume"
+          />
+        </div>
       </div>
     </>
   );
