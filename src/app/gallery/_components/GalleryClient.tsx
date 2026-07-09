@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X } from "lucide-react";
+import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X, Layers } from "lucide-react";
 import PhotoCard from "./PhotoCard";
 import Lightbox from "./Lightbox";
 
@@ -35,6 +35,21 @@ export default function GalleryClient({ photos }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
+  const [originalRatio, setOriginalRatio] = useState(false);
+
+  // Sync state from client localStorage after hydration to prevent SSR mismatch
+  useEffect(() => {
+    const saved = localStorage.getItem("gallery_original_ratio") === "true";
+    setOriginalRatio(saved);
+  }, []);
+
+  const handleToggleOriginalRatio = () => {
+    setOriginalRatio((prev) => {
+      const next = !prev;
+      localStorage.setItem("gallery_original_ratio", String(next));
+      return next;
+    });
+  };
 
   // Extract all unique tags for the filter dropdown
   const uniqueTags = useMemo(() => {
@@ -198,6 +213,21 @@ export default function GalleryClient({ photos }: Props) {
             </select>
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-overlay0 pointer-events-none" size={14} />
           </div>
+
+          {/* Layout Mode (Original Ratio Toggle) */}
+          <button
+            type="button"
+            onClick={handleToggleOriginalRatio}
+            className={`flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none active:scale-[0.98] ${
+              originalRatio
+                ? "bg-mauve/25 border-mauve text-mauve shadow-lg shadow-mauve/5"
+                : "bg-surface0/60 border-surface1/60 text-subtext1 hover:border-surface1 hover:text-text"
+            }`}
+            title="Toggle original aspect ratio vs fixed cropped ratio grid"
+          >
+            <Layers size={14} />
+            <span>Original Ratio</span>
+          </button>
         </div>
       </div>
 
@@ -220,7 +250,10 @@ export default function GalleryClient({ photos }: Props) {
               </motion.div>
               
               {/* Group Photos */}
-              <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <motion.div 
+                layout 
+                className={originalRatio ? "columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"}
+              >
                 <AnimatePresence mode="popLayout">
                   {group.photos.map((photo) => (
                     <motion.div
@@ -230,11 +263,12 @@ export default function GalleryClient({ photos }: Props) {
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ duration: 0.3 }}
                       key={photo.id}
-                      className="w-full"
+                      className={originalRatio ? "break-inside-avoid inline-block w-full mb-8" : "w-full"}
                     >
                       <PhotoCard
                         photo={photo}
                         onClick={() => setSelectedPhoto(photo)}
+                        originalRatio={originalRatio}
                       />
                     </motion.div>
                   ))}

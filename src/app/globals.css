@@ -86,3 +86,53 @@ pre {
   font-style: italic;
   color: theme('colors.subtext0');
 }
+
+@keyframes border-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.hover-border-animated-wrapper {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  padding: 1.5px;
+  background: transparent;
+}
+
+.hover-border-animated-wrapper::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 120deg,
+    #cba6f7 200deg,
+    #f5c2e7 280deg,
+    #b4befe 360deg
+  );
+  transform-origin: center;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+
+.group:hover .hover-border-animated-wrapper::before {
+  opacity: 1;
+  animation: border-rotate 4s linear infinite;
+}
+
+.hover-border-animated-inner {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(1rem - 1.5px);
+}

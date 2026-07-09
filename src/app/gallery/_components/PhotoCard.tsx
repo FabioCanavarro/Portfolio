@@ -19,7 +19,15 @@ type Photo = {
   published?: boolean;
 };
 
-export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: () => void }) {
+export default function PhotoCard({ 
+  photo, 
+  onClick,
+  originalRatio = false
+}: { 
+  photo: Photo; 
+  onClick: () => void;
+  originalRatio?: boolean;
+}) {
   const [isEdited, setIsEdited] = useState(true);
   const currentImage = isEdited ? photo.edited : photo.original;
 
@@ -31,15 +39,16 @@ export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: (
       onClick={onClick}
     >
       {/* Ambient Glow Background */}
-      <div className="absolute inset-0 z-0 transition-transform duration-500 group-hover:scale-105">
+      <div className="absolute inset-0 z-0 transition-transform duration-700 group-hover:scale-110 pointer-events-none">
         <div 
-          className="absolute inset-0 bg-cover bg-center blur-2xl opacity-40 transition-opacity duration-500 group-hover:opacity-70"
+          className="absolute -inset-6 bg-cover bg-center blur-3xl opacity-60 transition-opacity duration-700 group-hover:opacity-95 rounded-2xl"
           style={{ backgroundImage: `url(${currentImage})` }}
         />
       </div>
 
-      {/* Main Card */}
-      <div className="relative z-10 bg-crust/80 backdrop-blur-md rounded-2xl border border-surface0/50 overflow-hidden flex flex-col h-full transition-colors duration-300 group-hover:border-surface1">
+      {/* Main Card with Animated Border */}
+      <div className="hover-border-animated-wrapper w-full h-full relative z-10">
+        <div className="hover-border-animated-inner bg-crust/95 backdrop-blur-md overflow-hidden flex flex-col h-full transition-all duration-300 border border-surface0/50 group-hover:border-transparent">
         
         {/* Top Section - Title and Toggle */}
         <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent">
@@ -68,12 +77,12 @@ export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: (
         </div>
 
         {/* Image Container */}
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-black/20">
+        <div className={`relative w-full overflow-hidden bg-black/20 ${originalRatio ? "h-auto" : "aspect-[4/3]"}`}>
           <motion.img
             key={currentImage}
             src={currentImage}
             alt={photo.title}
-            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+            className={`w-full transition-transform duration-700 ease-out group-hover:scale-105 ${originalRatio ? "h-auto" : "h-full object-cover"}`}
             initial={{ opacity: 0.8 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
@@ -114,6 +123,7 @@ export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: (
                 </span>
               )}
             </div>
+          </div>
           </div>
         </div>
       </div>
