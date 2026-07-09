@@ -607,31 +607,17 @@ export default function AdminGalleryClient() {
     try {
       const base64 = await fileToBase64(item.editedFile);
       
-      const response = await fetch(`${aiBaseUrl}/chat/completions`, {
+      const response = await fetch("/api/gallery/ai", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${aiApiKey}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: aiModel,
-          messages: [
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text: "Analyze this photo. Return a JSON object with EXACTLY three properties: \n1. 'title' (a short, creative title, max 5 words)\n2. 'description' (a brief 1-sentence subheading describing the scene or vibe)\n3. 'tags' (an array of 3-5 lowercase words representing elements, subject, or mood).\n\nDo not output markdown code blocks. Output ONLY a clean, parseable JSON block."
-                },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: `data:${item.editedFile.type};base64,${base64}`
-                  }
-                }
-              ]
-            }
-          ]
+          aiBaseUrl,
+          aiApiKey,
+          aiModel,
+          imageBase64: base64,
+          imageType: item.editedFile.type
         })
       });
 
