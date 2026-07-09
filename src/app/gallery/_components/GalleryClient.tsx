@@ -15,6 +15,10 @@ type Photo = {
   tags: string[];
   original: string;
   edited: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  published?: boolean;
 };
 
 type Props = {

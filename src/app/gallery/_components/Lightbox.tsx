@@ -14,6 +14,10 @@ type Photo = {
   tags: string[];
   original: string;
   edited: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  published?: boolean;
 };
 
 export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: () => void }) {
@@ -83,15 +87,23 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
         <div className="w-full lg:w-1/3 p-6 lg:p-8 flex flex-col bg-crust overflow-y-auto">
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-text mb-2 tracking-tight">{photo.title}</h2>
-            {photo.date && (
-              <p className="text-sm font-mono text-subtext0">
-                {new Date(photo.date).toLocaleDateString(undefined, {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-            )}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-mono text-subtext0">
+              {photo.date && (
+                <span>
+                  {new Date(photo.date).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </span>
+              )}
+              {photo.date && (photo.city || photo.country) && <span>•</span>}
+              {(photo.city || photo.country) && (
+                <span className="text-mauve font-medium" title={[photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
+                  📍 {[photo.city, photo.country].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </div>
           </div>
           
           <div className="space-y-6 flex-1 text-sm md:text-[1rem] md:leading-6 text-subtext1">

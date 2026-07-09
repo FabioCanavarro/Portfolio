@@ -13,6 +13,10 @@ type Photo = {
   tags: string[];
   original: string;
   edited: string;
+  city?: string;
+  province?: string;
+  country?: string;
+  published?: boolean;
 };
 
 export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: () => void }) {
@@ -98,11 +102,18 @@ export default function PhotoCard({ photo, onClick }: { photo: Photo; onClick: (
                 </span>
               )}
             </div>
-            {photo.date && (
-              <span className="text-xs text-subtext0 font-mono">
-                {new Date(photo.date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-              </span>
-            )}
+            <div className="flex flex-col items-end text-right">
+              {photo.date && (
+                <span className="text-xs text-subtext0 font-mono">
+                  {new Date(photo.date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                </span>
+              )}
+              {(photo.city || photo.country) && (
+                <span className="text-[10px] text-mauve/80 font-mono mt-0.5 truncate max-w-[120px]" title={[photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
+                  📍 {[photo.city, photo.country].filter(Boolean).join(", ")}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

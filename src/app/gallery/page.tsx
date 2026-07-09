@@ -9,10 +9,11 @@ export const metadata = {
 export const revalidate = 60; // Revalidate the page every 60 seconds
 
 export default async function GalleryPage() {
-  // Fetch from Supabase
+  // Fetch from Supabase (only published photos)
   const { data: photographyData, error } = await supabase
     .from("photos")
     .select("*")
+    .eq("published", true)
     .order("date", { ascending: false });
 
   if (error) {
