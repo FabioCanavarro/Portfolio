@@ -265,6 +265,40 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ success: true });
     }
+    // ACTION: geocode
+    if (action === "geocode") {
+      const { lat, lon } = body;
+      if (lat === undefined || lon === undefined) {
+        return NextResponse.json({ error: "Latitude and longitude are required" }, { status: 400 });
+      }
+
+      console.log(`Server Geocoding coordinates: lat=${lat}, lon=${lon}`);
+
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`,
+          {
+            headers: {
+              "User-Agent": "FabioCanavarroPortfolio/1.0 (https://www.fabioc.me)",
+              "Accept-Language": "en"
+            },
+          }
+        );
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error("Nominatim API error:", res.status, errText);
+          return NextResponse.json({ error: `Nominatim returned ${res.status}: ${errText}` }, { status: res.status });
+        }
+
+        const data = await res.json();
+        return NextResponse.json(data);
+      } catch (err) {
+        console.error("Nominatim request failed:", err);
+        const msg = err instanceof Error ? err.message : "Internal Server Error";
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
+    }
 
     return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
   } catch (error) {

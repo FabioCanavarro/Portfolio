@@ -314,14 +314,17 @@ export default function AdminGalleryClient() {
       );
 
       try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${item.lat}&lon=${item.lon}&zoom=10&addressdetails=1`,
-          {
-            headers: {
-              "User-Agent": "FabioPortfolioPhotoUploader/1.0",
-            },
-          }
-        );
+        const res = await fetch("/api/gallery/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            action: "geocode",
+            lat: item.lat,
+            lon: item.lon
+          })
+        });
         if (res.ok) {
           const data = await res.json();
           const address = data.address || {};
