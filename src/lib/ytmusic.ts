@@ -61,3 +61,29 @@ export async function getYTMusicImage(
   ytImageCache.set(cacheKey, null);
   return null;
 }
+
+export async function getYTMusicVideoId(
+  query: string,
+): Promise<string | null> {
+  try {
+    const client = await getYTMusicClient();
+    const results = await client.search(query);
+
+    if (results && results.length > 0) {
+      // Prioritize SONG type results that have a videoId, fallback to any result with videoId
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const songResult = (results as any[]).find(
+        (r) => r.resultType?.toUpperCase() === "SONG" && r.videoId,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const item = (songResult ?? results.find((r: any) => r.videoId) ?? results[0]) as any;
+
+      if (item && item.videoId) {
+        return item.videoId;
+      }
+    }
+  } catch (_error) {
+    console.warn(`[YTMusic] Failed to fetch videoId for: ${query}`);
+  }
+  return null;
+}
