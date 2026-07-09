@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Upload, Check, AlertCircle, Trash2, Edit, Save, Lock, LogOut, 
-  Eye, EyeOff, Globe, Calendar, Tag, Plus, X, Loader2, Sparkles, MapPin 
+  Eye, EyeOff, Globe, Calendar, Tag, Plus, X, Loader2, Sparkles, MapPin, Settings, RefreshCw, Layers
 } from "lucide-react";
 import exifr from "exifr";
 
@@ -22,6 +22,7 @@ type Photo = {
   province?: string;
   country?: string;
   published?: boolean;
+  hash?: string;
 };
 
 interface UploadItem {
@@ -37,6 +38,7 @@ interface UploadItem {
   province: string;
   country: string;
   published: boolean;
+  hash: string;
   
   // File details
   editedFile: File;
@@ -51,8 +53,57 @@ interface UploadItem {
   saved: boolean;
   error: string | null;
   
-  // Temp preview
+  // Temp previews
   previewUrl: string;
+  originalPreviewUrl: string;
+}
+
+interface DuplicateItem {
+  file: File;
+  hash: string;
+  matchedTitle: string;
+  matchedSource: "database" | "queue";
+  previewUrl: string;
+  originalFile: File | null;
+}
+
+// Helper to format date to local datetime-local format YYYY-MM-DDTHH:mm:ss
+function formatDateToLocalDatetime(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const seconds = String(d.getSeconds()).padStart(2, "0");
+      return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+    }
+  } catch (e) {}
+  return "";
+}
+
+// Helper to convert File to base64
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.substring(result.indexOf(",") + 1);
+      resolve(base64);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+}
+
+// Helper to compute SHA-256 hash of a file
+async function calculateFileHash(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export default function AdminGalleryClient() {
@@ -69,6 +120,18 @@ export default function AdminGalleryClient() {
   // State for upload dashboard
   const [uploadQueue, setUploadQueue] = useState<UploadItem[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [queueLoading, setQueueLoading] = useState(false);
+
+  // Duplicate states
+  const [pendingDuplicates, setPendingDuplicates] = useState<DuplicateItem[]>([]);
+
+  // AI settings
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiBaseUrl, setAiBaseUrl] = useState("https://api.openai.com/v1");
+  const [aiModel, setAiModel] = useState("gpt-4o-mini");
+  const [showAiSettings, setShowAiSettings] = useState(false);
+  const [aiLoadingMap, setAiLoadingMap] = useState<Record<string, boolean>>({});
+  const [bulkAiLoading, setBulkAiLoading] = useState(false);
 
   // State for existing photos management
   const [existingPhotos, setExistingPhotos] = useState<Photo[]>([]);
@@ -76,16 +139,23 @@ export default function AdminGalleryClient() {
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Geocoding queue refs to avoid rate limits (OSM Nominatim limit is 1 req/sec)
+  // Geocoding queue refs to avoid rate limits
   const geocodeQueue = useRef<{ id: string; lat: number; lon: number }[]>([]);
   const geocodingInProgress = useRef(false);
 
-  // Check auth status on load
+  // Load AI configuration & auth
   useEffect(() => {
     checkAuth();
+    
+    // Load local storage AI config
+    const key = localStorage.getItem("gallery_ai_api_key") || "";
+    const url = localStorage.getItem("gallery_ai_base_url") || "https://api.openai.com/v1";
+    const model = localStorage.getItem("gallery_ai_model") || "gpt-4o-mini";
+    setAiApiKey(key);
+    setAiBaseUrl(url);
+    setAiModel(model);
   }, []);
 
-  // Fetch photos if authenticated and active tab changes to 'manage'
   useEffect(() => {
     if (isAuthenticated && activeTab === "manage") {
       fetchExistingPhotos();
@@ -121,6 +191,7 @@ export default function AdminGalleryClient() {
 
       if (res.ok) {
         setIsAuthenticated(true);
+        fetchExistingPhotos(); // Pre-fetch photos to have their hashes ready for duplicate check
       } else {
         const data = await res.json();
         setAuthError(data.error || "Incorrect password");
@@ -159,7 +230,7 @@ export default function AdminGalleryClient() {
     }
   };
 
-  // Process Geocoding queue sequentially with 1.2s delay to comply with OSM rules
+  // Sequential geocoding processor
   const processGeocodeQueue = async () => {
     if (geocodingInProgress.current || geocodeQueue.current.length === 0) return;
     geocodingInProgress.current = true;
@@ -216,104 +287,151 @@ export default function AdminGalleryClient() {
         );
       }
 
-      // Wait 1.2 seconds before the next OSM API request
       await new Promise((resolve) => setTimeout(resolve, 1200));
     }
 
     geocodingInProgress.current = false;
   };
 
-  // Add files to the upload queue and match original/edited automatically
+  // SHA-256 Hashing and duplicate matching loop
   const handleFilesAdded = async (files: FileList) => {
     const fileArray = Array.from(files);
-    const newItems: UploadItem[] = [];
-
-    // Separate possible original files and regular/edited files
-    // Group files by base name
     const origSuffixes = ["_orig", "-orig", "_original", "-original"];
     
-    // Create preview URLs and basic structures
-    for (const file of fileArray) {
-      // Check if it's an original file. If so, we'll try to pair it with the main edited file
+    // Separate originals and edited/mains
+    const mainFiles = fileArray.filter(file => {
       const lowercaseName = file.name.toLowerCase();
-      const isOriginalFile = origSuffixes.some(suffix => {
+      return !origSuffixes.some(suffix => {
         const extIndex = lowercaseName.lastIndexOf(".");
         const nameWithoutExt = extIndex !== -1 ? lowercaseName.substring(0, extIndex) : lowercaseName;
         return nameWithoutExt.endsWith(suffix);
       });
+    });
 
-      if (isOriginalFile) continue; // We will handle matching original files inside the main loop
+    const potentialOriginals = fileArray.filter(file => {
+      const lowercaseName = file.name.toLowerCase();
+      return origSuffixes.some(suffix => {
+        const extIndex = lowercaseName.lastIndexOf(".");
+        const nameWithoutExt = extIndex !== -1 ? lowercaseName.substring(0, extIndex) : lowercaseName;
+        return nameWithoutExt.endsWith(suffix);
+      });
+    });
 
-      const tempId = Math.random().toString(36).substring(2, 9);
-      const extIndex = file.name.lastIndexOf(".");
-      const baseName = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
-      
-      // Auto prefill title: Capitalize words, replace dashes/underscores
-      const formattedTitle = baseName
-        .replace(/[_\-]/g, " ")
-        .replace(/\b\w/g, c => c.toUpperCase());
+    const duplicatesList: DuplicateItem[] = [];
+    const validItems: UploadItem[] = [];
+    const currentBatchHashes = new Set<string>();
 
-      // Look for a matching original file in the list
-      let matchedOriginalFile: File | null = null;
-      for (const origFile of fileArray) {
-        const origLowercase = origFile.name.toLowerCase();
-        for (const suffix of origSuffixes) {
-          const matchTarget = `${baseName.toLowerCase()}${suffix}`;
-          const origExtIndex = origLowercase.lastIndexOf(".");
-          const origNameWithoutExt = origExtIndex !== -1 ? origLowercase.substring(0, origExtIndex) : origLowercase;
-          if (origNameWithoutExt === matchTarget) {
-            matchedOriginalFile = origFile;
-            break;
+    setQueueLoading(true);
+
+    for (const file of mainFiles) {
+      try {
+        const hash = await calculateFileHash(file);
+        
+        // Match against database, active queue, and current batch
+        const dbMatch = existingPhotos.find(p => p.hash === hash);
+        const queueMatch = uploadQueue.find(q => q.hash === hash);
+        const batchMatch = currentBatchHashes.has(hash);
+
+        const matchedTitle = dbMatch?.title || queueMatch?.title || (batchMatch ? "a file in the current batch" : "");
+        const matchedSource = dbMatch ? "database" : (queueMatch || batchMatch) ? "queue" : null;
+
+        // Auto-detect comparison original
+        const extIndex = file.name.lastIndexOf(".");
+        const baseName = extIndex !== -1 ? file.name.substring(0, extIndex) : file.name;
+        
+        let matchedOriginalFile: File | null = null;
+        for (const origFile of potentialOriginals) {
+          const origLowercase = origFile.name.toLowerCase();
+          for (const suffix of origSuffixes) {
+            const matchTarget = `${baseName.toLowerCase()}${suffix}`;
+            const origExtIndex = origLowercase.lastIndexOf(".");
+            const origNameWithoutExt = origExtIndex !== -1 ? origLowercase.substring(0, origExtIndex) : origLowercase;
+            if (origNameWithoutExt === matchTarget) {
+              matchedOriginalFile = origFile;
+              break;
+            }
           }
+          if (matchedOriginalFile) break;
         }
-        if (matchedOriginalFile) break;
+
+        if (matchedSource) {
+          duplicatesList.push({
+            file,
+            hash,
+            matchedTitle,
+            matchedSource: matchedSource as "database" | "queue",
+            previewUrl: URL.createObjectURL(file),
+            originalFile: matchedOriginalFile
+          });
+        } else {
+          currentBatchHashes.add(hash);
+          
+          const tempId = Math.random().toString(36).substring(2, 9);
+          const formattedTitle = baseName
+            .replace(/[_\-]/g, " ")
+            .replace(/\b\w/g, c => c.toUpperCase());
+
+          const item: UploadItem = {
+            id: tempId,
+            fileName: file.name,
+            title: formattedTitle,
+            description: "",
+            backstory: "",
+            date: formatDateToLocalDatetime(new Date().toISOString()),
+            year: new Date().getFullYear().toString(),
+            tags: [],
+            city: "",
+            province: "",
+            country: "",
+            published: false,
+            editedFile: file,
+            originalFile: matchedOriginalFile,
+            exifParsed: false,
+            geocoding: false,
+            uploading: false,
+            uploadProgress: 0,
+            uploaded: false,
+            saved: false,
+            error: null,
+            previewUrl: URL.createObjectURL(file),
+            originalPreviewUrl: matchedOriginalFile ? URL.createObjectURL(matchedOriginalFile) : "",
+            hash
+          };
+          
+          validItems.push(item);
+        }
+      } catch (e) {
+        console.error("Hashing failed for file:", file.name, e);
       }
-
-      const item: UploadItem = {
-        id: tempId,
-        fileName: file.name,
-        title: formattedTitle,
-        description: "",
-        backstory: "",
-        date: new Date().toISOString().split("T")[0],
-        year: new Date().getFullYear().toString(),
-        tags: [],
-        city: "",
-        province: "",
-        country: "",
-        published: false,
-        editedFile: file,
-        originalFile: matchedOriginalFile,
-        exifParsed: false,
-        geocoding: false,
-        uploading: false,
-        uploadProgress: 0,
-        uploaded: false,
-        saved: false,
-        error: null,
-        previewUrl: URL.createObjectURL(file)
-      };
-
-      newItems.push(item);
     }
 
-    setUploadQueue((prev) => [...prev, ...newItems]);
+    setQueueLoading(false);
 
-    // Parse EXIF and GPS details for each new item
-    for (const item of newItems) {
+    if (validItems.length > 0) {
+      setUploadQueue((prev) => [...prev, ...validItems]);
+      triggerExifAndGeocode(validItems);
+    }
+
+    if (duplicatesList.length > 0) {
+      setPendingDuplicates(duplicatesList);
+    }
+  };
+
+  const triggerExifAndGeocode = async (items: UploadItem[]) => {
+    for (const item of items) {
       try {
         const exif = await exifr.parse(item.editedFile, {
           gps: true,
           tiff: true,
         });
 
-        let exifDate = item.date;
-        let exifYear = item.year;
+        let exifDate = formatDateToLocalDatetime(new Date().toISOString());
+        let exifYear = new Date().getFullYear().toString();
 
         if (exif && exif.DateTimeOriginal) {
           const d = new Date(exif.DateTimeOriginal);
           if (!isNaN(d.getTime())) {
-            exifDate = d.toISOString().split("T")[0];
+            exifDate = formatDateToLocalDatetime(d.toISOString());
             exifYear = d.getFullYear().toString();
           }
         }
@@ -331,7 +449,6 @@ export default function AdminGalleryClient() {
           )
         );
 
-        // If GPS details are present, push to geocoding queue
         if (exif && exif.latitude && exif.longitude) {
           geocodeQueue.current.push({
             id: item.id,
@@ -341,8 +458,7 @@ export default function AdminGalleryClient() {
           processGeocodeQueue();
         }
       } catch (e) {
-        console.error("Error reading EXIF data for file:", item.fileName, e);
-        // Still mark as parsed to clear loading indicators
+        console.error("EXIF parsing failed:", item.fileName, e);
         setUploadQueue((prev) =>
           prev.map((qItem) =>
             qItem.id === item.id ? { ...qItem, exifParsed: true } : qItem
@@ -352,6 +468,230 @@ export default function AdminGalleryClient() {
     }
   };
 
+  // Duplicate Resolution Modal Actions
+  const resolveDuplicate = (upload: boolean) => {
+    const current = pendingDuplicates[0];
+    if (!current) return;
+
+    if (upload) {
+      const extIndex = current.file.name.lastIndexOf(".");
+      const baseName = extIndex !== -1 ? current.file.name.substring(0, extIndex) : current.file.name;
+      const formattedTitle = baseName.replace(/[_\-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+      const item: UploadItem = {
+        id: Math.random().toString(36).substring(2, 9),
+        fileName: current.file.name,
+        title: formattedTitle,
+        description: "",
+        backstory: "",
+        date: formatDateToLocalDatetime(new Date().toISOString()),
+        year: new Date().getFullYear().toString(),
+        tags: [],
+        city: "",
+        province: "",
+        country: "",
+        published: false,
+        editedFile: current.file,
+        originalFile: current.originalFile,
+        exifParsed: false,
+        geocoding: false,
+        uploading: false,
+        uploadProgress: 0,
+        uploaded: false,
+        saved: false,
+        error: null,
+        previewUrl: current.previewUrl,
+        originalPreviewUrl: current.originalFile ? URL.createObjectURL(current.originalFile) : "",
+        hash: current.hash
+      };
+      
+      setUploadQueue((prev) => [...prev, item]);
+      triggerExifAndGeocode([item]);
+    } else {
+      URL.revokeObjectURL(current.previewUrl);
+    }
+    setPendingDuplicates((prev) => prev.slice(1));
+  };
+
+  const skipAllDuplicates = () => {
+    pendingDuplicates.forEach(d => URL.revokeObjectURL(d.previewUrl));
+    setPendingDuplicates([]);
+  };
+
+  const uploadAllDuplicates = () => {
+    const itemsToAdd = pendingDuplicates.map((current) => {
+      const extIndex = current.file.name.lastIndexOf(".");
+      const baseName = extIndex !== -1 ? current.file.name.substring(0, extIndex) : current.file.name;
+      const formattedTitle = baseName.replace(/[_\-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      
+      return {
+        id: Math.random().toString(36).substring(2, 9),
+        fileName: current.file.name,
+        title: formattedTitle,
+        description: "",
+        backstory: "",
+        date: formatDateToLocalDatetime(new Date().toISOString()),
+        year: new Date().getFullYear().toString(),
+        tags: [],
+        city: "",
+        province: "",
+        country: "",
+        published: false,
+        editedFile: current.file,
+        originalFile: current.originalFile,
+        exifParsed: false,
+        geocoding: false,
+        uploading: false,
+        uploadProgress: 0,
+        uploaded: false,
+        saved: false,
+        error: null,
+        previewUrl: current.previewUrl,
+        originalPreviewUrl: current.originalFile ? URL.createObjectURL(current.originalFile) : "",
+        hash: current.hash
+      };
+    });
+
+    setUploadQueue((prev) => [...prev, ...itemsToAdd]);
+    triggerExifAndGeocode(itemsToAdd);
+    setPendingDuplicates([]);
+  };
+
+  // Swapping original and edited slot references
+  const handleSwapSlots = (itemId: string) => {
+    setUploadQueue((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId && item.originalFile) {
+          const edited = item.originalFile;
+          const original = item.editedFile;
+          
+          const newPreviewUrl = item.originalPreviewUrl;
+          const newOriginalPreviewUrl = item.previewUrl;
+          
+          return {
+            ...item,
+            editedFile: edited,
+            originalFile: original,
+            previewUrl: newPreviewUrl,
+            originalPreviewUrl: newOriginalPreviewUrl,
+            fileName: edited.name
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  // AI Settings functions
+  const handleSaveAiSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem("gallery_ai_api_key", aiApiKey);
+    localStorage.setItem("gallery_ai_base_url", aiBaseUrl);
+    localStorage.setItem("gallery_ai_model", aiModel);
+    setShowAiSettings(false);
+  };
+
+  // Client-side Multimodal Vision AI metadata extraction
+  const generateAiMetadata = async (itemId: string): Promise<boolean> => {
+    if (!aiApiKey) {
+      alert("AI API Key is missing. Please open 'AI Settings' in the top bar to configure your key.");
+      setShowAiSettings(true);
+      return false;
+    }
+
+    const item = uploadQueue.find(q => q.id === itemId);
+    if (!item || item.saved) return false;
+
+    setAiLoadingMap(prev => ({ ...prev, [itemId]: true }));
+
+    try {
+      const base64 = await fileToBase64(item.editedFile);
+      
+      const response = await fetch(`${aiBaseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${aiApiKey}`
+        },
+        body: JSON.stringify({
+          model: aiModel,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "Analyze this photo. Return a JSON object with EXACTLY three properties: \n1. 'title' (a short, creative title, max 5 words)\n2. 'description' (a brief 1-sentence subheading describing the scene or vibe)\n3. 'tags' (an array of 3-5 lowercase words representing elements, subject, or mood).\n\nDo not output markdown code blocks. Output ONLY a clean, parseable JSON block."
+                },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${item.editedFile.type};base64,${base64}`
+                  }
+                }
+              ]
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) throw new Error("Empty response content from AI model.");
+
+      let cleanText = content.trim();
+      if (cleanText.startsWith("```json")) {
+        cleanText = cleanText.substring(7);
+      }
+      if (cleanText.startsWith("```")) {
+        cleanText = cleanText.substring(3);
+      }
+      if (cleanText.endsWith("```")) {
+        cleanText = cleanText.substring(0, cleanText.length - 3);
+      }
+
+      const parsed = JSON.parse(cleanText.trim());
+
+      setUploadQueue((prev) =>
+        prev.map((q) =>
+          q.id === itemId
+            ? {
+                ...q,
+                title: parsed.title || q.title,
+                description: parsed.description || q.description,
+                tags: Array.isArray(parsed.tags) ? parsed.tags : q.tags,
+              }
+            : q
+        )
+      );
+
+      return true;
+    } catch (e) {
+      console.error("AI Autotag error:", e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      alert(`AI metadata generation failed for ${item.fileName}: ${errMsg}`);
+      return false;
+    } finally {
+      setAiLoadingMap(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  const handleBulkAiAutofill = async () => {
+    const unsavedItems = uploadQueue.filter(q => !q.saved && !q.uploading);
+    if (unsavedItems.length === 0) return;
+
+    setBulkAiLoading(true);
+    for (const item of unsavedItems) {
+      await generateAiMetadata(item.id);
+    }
+    setBulkAiLoading(false);
+  };
+
+  // Drag and Drop Handlers
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -371,13 +711,12 @@ export default function AdminGalleryClient() {
     }
   };
 
-  // Helper to upload a single file directly to Supabase storage via signed upload URL
+  // Supabase Storage upload
   const uploadFileToStorage = async (
     file: File, 
     folder: "original" | "edited", 
     onProgress: (progress: number) => void
   ): Promise<string> => {
-    // 1. Get signed upload URL from backend
     const signRes = await fetch("/api/gallery/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -395,7 +734,6 @@ export default function AdminGalleryClient() {
 
     const { signedUrl, publicUrl } = await signRes.json();
 
-    // 2. Upload file directly to signed URL using XMLHTTPRequest to track upload progress
     return new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", signedUrl, true);
@@ -421,7 +759,7 @@ export default function AdminGalleryClient() {
     });
   };
 
-  // Save/Publish a single item from the queue
+  // Save single photo record
   const savePhotoItem = async (itemId: string) => {
     const item = uploadQueue.find((q) => q.id === itemId);
     if (!item || item.saved || item.uploading) return;
@@ -434,11 +772,7 @@ export default function AdminGalleryClient() {
       let editedUrl = "";
       let originalUrl = "";
 
-      // 1. Upload Edited Image
-      setUploadQueue((prev) =>
-        prev.map((q) => (q.id === itemId ? { ...q, uploadProgress: 10 } : q))
-      );
-      
+      // 1. Upload Edited Version
       editedUrl = await uploadFileToStorage(
         item.editedFile, 
         "edited", 
@@ -446,19 +780,15 @@ export default function AdminGalleryClient() {
           setUploadQueue((prev) =>
             prev.map((q) => 
               q.id === itemId 
-                ? { ...q, uploadProgress: Math.round(progress * 0.45) } // Scales to 45% of total progress
+                ? { ...q, uploadProgress: Math.round(progress * 0.45) }
                 : q
             )
           );
         }
       );
 
-      // 2. Upload Original Image if exists, else copy edited URL
+      // 2. Upload Original Version
       if (item.originalFile) {
-        setUploadQueue((prev) =>
-          prev.map((q) => (q.id === itemId ? { ...q, uploadProgress: 50 } : q))
-        );
-
         originalUrl = await uploadFileToStorage(
           item.originalFile,
           "original",
@@ -466,7 +796,7 @@ export default function AdminGalleryClient() {
             setUploadQueue((prev) =>
               prev.map((q) =>
                 q.id === itemId
-                  ? { ...q, uploadProgress: 50 + Math.round(progress * 0.45) } // Scales to 50-95%
+                  ? { ...q, uploadProgress: 45 + Math.round(progress * 0.45) }
                   : q
               )
             );
@@ -480,7 +810,7 @@ export default function AdminGalleryClient() {
         prev.map((q) => (q.id === itemId ? { ...q, uploadProgress: 95 } : q))
       );
 
-      // 3. Save photo metadata to database
+      // 3. Save DB record
       const saveRes = await fetch("/api/gallery/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -490,7 +820,7 @@ export default function AdminGalleryClient() {
             title: item.title,
             description: item.description,
             backstory: item.backstory,
-            date: item.date,
+            date: item.date, // Stored as ISO or datetime string
             year: item.year,
             tags: item.tags,
             original: originalUrl,
@@ -498,7 +828,8 @@ export default function AdminGalleryClient() {
             city: item.city,
             province: item.province,
             country: item.country,
-            published: item.published
+            published: item.published,
+            hash: item.hash
           }
         })
       });
@@ -508,7 +839,8 @@ export default function AdminGalleryClient() {
         throw new Error(errData.error || "Failed to save photo metadata");
       }
 
-      // Success
+      const resData = await saveRes.json();
+
       setUploadQueue((prev) =>
         prev.map((q) => 
           q.id === itemId 
@@ -517,10 +849,17 @@ export default function AdminGalleryClient() {
         )
       );
 
-      // Remove from list after a short delay so user can see it completed
+      // Prepend to existing photos list locally
+      setExistingPhotos(prev => [resData.photo, ...prev]);
+
       setTimeout(() => {
-        setUploadQueue((prev) => prev.filter((q) => q.id !== itemId));
-      }, 1500);
+        setUploadQueue((prev) => {
+          const filtered = prev.filter((q) => q.id !== itemId);
+          URL.revokeObjectURL(item.previewUrl);
+          if (item.originalPreviewUrl) URL.revokeObjectURL(item.originalPreviewUrl);
+          return filtered;
+        });
+      }, 1200);
 
     } catch (err) {
       console.error(`Error saving item ${item.fileName}:`, err);
@@ -532,7 +871,6 @@ export default function AdminGalleryClient() {
   };
 
   const saveAllPhotos = async () => {
-    // Only process unsaved, non-uploading files
     const pendingItems = uploadQueue.filter((q) => !q.saved && !q.uploading);
     for (const item of pendingItems) {
       await savePhotoItem(item.id);
@@ -543,16 +881,27 @@ export default function AdminGalleryClient() {
     setUploadQueue((prev) => {
       const filtered = prev.filter((q) => q.id !== id);
       const item = prev.find((q) => q.id === id);
-      if (item) URL.revokeObjectURL(item.previewUrl);
+      if (item) {
+        URL.revokeObjectURL(item.previewUrl);
+        if (item.originalPreviewUrl) URL.revokeObjectURL(item.originalPreviewUrl);
+      }
       return filtered;
     });
   };
 
-  // Toggle publish status of an existing photo in database directly
+  const clearQueue = () => {
+    if (confirm("Discard all pending uploads in your queue?")) {
+      uploadQueue.forEach((item) => {
+        URL.revokeObjectURL(item.previewUrl);
+        if (item.originalPreviewUrl) URL.revokeObjectURL(item.originalPreviewUrl);
+      });
+      setUploadQueue([]);
+    }
+  };
+
   const handleTogglePublish = async (photo: Photo) => {
     const updatedPhoto = { ...photo, published: !photo.published };
     
-    // Update local state immediately for visual responsiveness
     setExistingPhotos((prev) =>
       prev.map((p) => (p.id === photo.id ? updatedPhoto : p))
     );
@@ -568,11 +917,10 @@ export default function AdminGalleryClient() {
       });
 
       if (!res.ok) {
-        // Rollback state on error
         setExistingPhotos((prev) =>
           prev.map((p) => (p.id === photo.id ? photo : p))
         );
-        alert("Failed to update status.");
+        alert("Failed to update publication status.");
       }
     } catch (e) {
       setExistingPhotos((prev) =>
@@ -582,7 +930,6 @@ export default function AdminGalleryClient() {
     }
   };
 
-  // Delete an existing photo from db and bucket
   const handleDeletePhoto = async (photo: Photo) => {
     if (!confirm(`Are you sure you want to delete "${photo.title}"? This will erase it permanently.`)) {
       return;
@@ -603,7 +950,6 @@ export default function AdminGalleryClient() {
       });
 
       if (!res.ok) {
-        // Rollback
         setExistingPhotos((prev) => [...prev, photo].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
         alert("Failed to delete photo.");
       }
@@ -613,7 +959,6 @@ export default function AdminGalleryClient() {
     }
   };
 
-  // Save changes to photo edited in modal
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPhoto) return;
@@ -646,7 +991,6 @@ export default function AdminGalleryClient() {
     }
   };
 
-  // Update fields in the upload queue items
   const updateQueueItem = (id: string, fields: Partial<UploadItem>) => {
     setUploadQueue((prev) =>
       prev.map((item) => (item.id === id ? { ...item, ...fields } : item))
@@ -665,7 +1009,6 @@ export default function AdminGalleryClient() {
   if (isAuthenticated === false) {
     return (
       <div className="min-h-screen pt-24 pb-12 px-4 flex items-center justify-center bg-base relative overflow-hidden">
-        {/* Glow ambient backgrounds */}
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-mauve/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue/10 rounded-full blur-3xl" />
 
@@ -728,14 +1071,14 @@ export default function AdminGalleryClient() {
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-text bg-base">
       
-      {/* Admin header */}
+      {/* Admin Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 border-b border-surface0 pb-8 mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-mauve flex items-center gap-2">
             <Sparkles size={28} /> Photography Portal
           </h1>
           <p className="text-subtext0 mt-2 text-sm">
-            Bulk-upload photos, parse GPS locations, and edit backstories.
+            Bulk-upload photos, parse GPS locations, swap comparisons, and run Vision AI metadata fills.
           </p>
         </div>
         
@@ -762,8 +1105,16 @@ export default function AdminGalleryClient() {
           </button>
           
           <button
+            onClick={() => setShowAiSettings(true)}
+            className="p-2 bg-surface0 hover:bg-surface1 text-subtext0 hover:text-text border border-surface1 rounded-xl transition-all cursor-pointer"
+            title="Configure Vision AI Settings"
+          >
+            <Settings size={20} />
+          </button>
+
+          <button
             onClick={handleLogout}
-            className="p-2 bg-surface0 hover:bg-red/20 text-subtext0 hover:text-red border border-surface1 hover:border-red/30 rounded-xl transition-all cursor-pointer ml-2"
+            className="p-2 bg-surface0 hover:bg-red/20 text-subtext0 hover:text-red border border-surface1 hover:border-red/30 rounded-xl transition-all cursor-pointer"
             title="Log Out"
           >
             <LogOut size={20} />
@@ -796,42 +1147,67 @@ export default function AdminGalleryClient() {
             />
             
             <div className="p-4 bg-surface0/60 rounded-full border border-surface1 mb-4 text-mauve">
-              <Upload size={32} />
+              {queueLoading ? <Loader2 className="animate-spin" size={32} /> : <Upload size={32} />}
             </div>
             
-            <h3 className="text-lg font-bold text-text mb-1">Drag and drop your photos</h3>
+            <h3 className="text-lg font-bold text-text mb-1">
+              {queueLoading ? "Computing SHA-256 hashes..." : "Drag and drop your photos"}
+            </h3>
             <p className="text-sm text-subtext0 max-w-md px-4">
-              Select multiple photos at once. If you want comparison cards, upload matching original and edited files. 
-              Original file name must end with <code className="bg-surface0 px-1 py-0.5 rounded text-mauve">_orig</code> (e.g. <code className="bg-surface0 px-1.5 py-0.5 rounded">lake.jpg</code> & <code className="bg-surface0 px-1.5 py-0.5 rounded">lake_orig.jpg</code>).
+              Supports bulk imports. Drop edited files and matching originals named <code className="bg-surface0 px-1.5 py-0.5 rounded text-mauve">[name]_orig.jpg</code> to auto-match them.
             </p>
           </div>
 
           {/* Pending Upload List */}
           {uploadQueue.length > 0 && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between border-b border-surface0 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-surface0 pb-4">
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                  Pending Uploads <span className="bg-mauve/20 text-mauve px-2.5 py-0.5 rounded-full text-xs font-semibold">{uploadQueue.length}</span>
+                  Pending Upload Queue 
+                  <span className="bg-mauve/20 text-mauve px-2.5 py-0.5 rounded-full text-xs font-semibold">{uploadQueue.length}</span>
                 </h3>
-                <button
-                  onClick={saveAllPhotos}
-                  disabled={uploadQueue.some((q) => q.uploading)}
-                  className="flex items-center gap-2 bg-green text-crust font-bold px-5 py-2.5 rounded-xl hover:bg-opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-green/10"
-                >
-                  <Save size={18} /> Save & Publish All
-                </button>
+                
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={handleBulkAiAutofill}
+                    disabled={bulkAiLoading || uploadQueue.some((q) => q.uploading)}
+                    className="flex items-center gap-2 bg-mauve/20 border border-mauve/30 text-mauve font-semibold px-4 py-2 rounded-xl hover:bg-mauve/30 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-sm"
+                  >
+                    {bulkAiLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                    <span>AI Auto-Fill All</span>
+                  </button>
+
+                  <button
+                    onClick={clearQueue}
+                    disabled={uploadQueue.some((q) => q.uploading)}
+                    className="flex items-center gap-2 bg-surface0 hover:bg-surface1 text-text border border-surface1 px-4 py-2 rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-sm"
+                  >
+                    <X size={16} /> Discard All
+                  </button>
+
+                  <button
+                    onClick={saveAllPhotos}
+                    disabled={uploadQueue.some((q) => q.uploading)}
+                    className="flex items-center gap-2 bg-green text-crust font-bold px-5 py-2.5 rounded-xl hover:bg-opacity-90 active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-green/10 text-sm"
+                  >
+                    <Save size={16} /> Save & Publish All
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-6">
+              {/* Upload queue forms */}
+              <div className="space-y-8">
                 {uploadQueue.map((item) => (
                   <div
                     key={item.id}
                     className="bg-crust/50 border border-surface0/70 p-6 rounded-2xl flex flex-col md:flex-row gap-6 relative overflow-hidden transition-colors"
                   >
-                    {/* Status glow overlay */}
+                    {/* Status progress bar */}
                     {item.uploading && (
                       <div className="absolute bottom-0 left-0 h-1 bg-mauve transition-all duration-300" style={{ width: `${item.uploadProgress}%` }} />
                     )}
+                    
+                    {/* Saved modal overlay */}
                     {item.saved && (
                       <div className="absolute inset-0 bg-green/5 border border-green/30 backdrop-blur-[1px] pointer-events-none flex items-center justify-center z-20">
                         <motion.div 
@@ -840,21 +1216,21 @@ export default function AdminGalleryClient() {
                           className="bg-crust border border-green p-4 rounded-xl flex items-center gap-3 shadow-2xl text-green"
                         >
                           <Check size={24} className="stroke-[3]" />
-                          <span className="font-bold text-lg">Successfully Saved!</span>
+                          <span className="font-bold text-lg">Saved successfully!</span>
                         </motion.div>
                       </div>
                     )}
 
-                    {/* Thumbnail Preview & Pair indicator */}
-                    <div className="w-full md:w-48 shrink-0 flex flex-col gap-3">
+                    {/* Thumbnail preview details */}
+                    <div className="w-full md:w-56 shrink-0 flex flex-col gap-3">
                       <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-surface0 border border-surface1 relative">
                         <img src={item.previewUrl} alt={item.fileName} className="w-full h-full object-cover" />
                         
-                        {/* Overlay statuses */}
+                        {/* Queue Item Status Overlays */}
                         {!item.exifParsed && (
                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 text-xs">
                             <Loader2 className="animate-spin text-mauve" size={20} />
-                            <span>Reading EXIF...</span>
+                            <span>EXIF Scan...</span>
                           </div>
                         )}
                         {item.geocoding && (
@@ -863,28 +1239,37 @@ export default function AdminGalleryClient() {
                             <span>Geocoding coordinates...</span>
                           </div>
                         )}
+                        {aiLoadingMap[item.id] && (
+                          <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-2 text-xs">
+                            <Sparkles className="animate-pulse text-mauve" size={24} />
+                            <span className="font-semibold text-mauve">AI categorizing...</span>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Matching info */}
-                      <div className="text-xs bg-surface0/60 p-2.5 rounded-lg border border-surface1/60 space-y-1">
-                        <div className="truncate font-mono" title={item.fileName}>
-                          <span className="text-mauve font-semibold">File:</span> {item.fileName}
+                      {/* File Details box */}
+                      <div className="text-[10px] bg-surface0/60 p-3 rounded-lg border border-surface1/60 space-y-1.5 font-mono">
+                        <div className="truncate" title={item.fileName}>
+                          <span className="text-mauve font-semibold">Name:</span> {item.fileName}
+                        </div>
+                        <div className="truncate" title={item.hash}>
+                          <span className="text-mauve font-semibold">Hash:</span> {item.hash.substring(0, 16)}...
                         </div>
                         {item.originalFile ? (
-                          <div className="truncate text-green flex items-center gap-1">
-                            <Check size={12} className="stroke-[2.5]" />
-                            <span>Paired: {item.originalFile.name}</span>
+                          <div className="truncate text-green flex items-center gap-1 font-semibold">
+                            <Check size={11} className="stroke-[3]" />
+                            <span>Paired Comparison</span>
                           </div>
                         ) : (
-                          <div className="text-subtext0 italic">No comparison original</div>
+                          <div className="text-subtext0 italic">No original version</div>
                         )}
                       </div>
                     </div>
 
-                    {/* Meta Fields Form */}
+                    {/* Metadata fields form */}
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
                       
-                      {/* Left form section */}
+                      {/* Left form inputs */}
                       <div className="space-y-4">
                         <div>
                           <label className="text-xs font-semibold text-subtext1 mb-1 block">Title</label>
@@ -892,8 +1277,8 @@ export default function AdminGalleryClient() {
                             type="text"
                             value={item.title}
                             onChange={(e) => updateQueueItem(item.id, { title: e.target.value })}
-                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve transition-colors"
-                            placeholder="Enter photo title..."
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                            placeholder="Creative title..."
                           />
                         </div>
                         
@@ -903,8 +1288,8 @@ export default function AdminGalleryClient() {
                             type="text"
                             value={item.description}
                             onChange={(e) => updateQueueItem(item.id, { description: e.target.value })}
-                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve transition-colors"
-                            placeholder="Brief description/subtitle..."
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                            placeholder="Captured in Paris, France..."
                           />
                         </div>
 
@@ -914,29 +1299,29 @@ export default function AdminGalleryClient() {
                             value={item.backstory}
                             onChange={(e) => updateQueueItem(item.id, { backstory: e.target.value })}
                             rows={3}
-                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve transition-colors resize-none"
-                            placeholder="Enter the backstory behind this capture..."
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve resize-none"
+                            placeholder="Tell the story behind this shot..."
                           />
                         </div>
                       </div>
 
-                      {/* Right form section */}
+                      {/* Right form inputs */}
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-xs font-semibold text-subtext1 mb-1 block">Date Taken</label>
-                            <div className="relative">
-                              <input
-                                type="date"
-                                value={item.date}
-                                onChange={(e) => {
-                                  const dateVal = e.target.value;
-                                  const yearVal = dateVal ? new Date(dateVal).getFullYear().toString() : item.year;
-                                  updateQueueItem(item.id, { date: dateVal, year: yearVal });
-                                }}
-                                className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-1.5 text-sm text-text outline-none focus:border-mauve transition-colors"
-                              />
-                            </div>
+                            {/* Datetime support with hours, minutes, seconds */}
+                            <label className="text-xs font-semibold text-subtext1 mb-1 block">Date & Time (Local)</label>
+                            <input
+                              type="datetime-local"
+                              step="1"
+                              value={item.date}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const yearVal = val ? new Date(val).getFullYear().toString() : item.year;
+                                updateQueueItem(item.id, { date: val, year: yearVal });
+                              }}
+                              className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-1.5 text-xs text-text outline-none focus:border-mauve"
+                            />
                           </div>
 
                           <div>
@@ -945,13 +1330,13 @@ export default function AdminGalleryClient() {
                               type="text"
                               value={item.year}
                               onChange={(e) => updateQueueItem(item.id, { year: e.target.value })}
-                              className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve transition-colors"
+                              className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
                               placeholder="Year"
                             />
                           </div>
                         </div>
 
-                        {/* Location Prefills */}
+                        {/* Location Details (Country, Province, City) */}
                         <div>
                           <label className="text-xs font-semibold text-subtext1 mb-1 block flex items-center gap-1">
                             <MapPin size={12} className="text-mauve" /> Location Details
@@ -961,21 +1346,21 @@ export default function AdminGalleryClient() {
                               type="text"
                               value={item.city}
                               onChange={(e) => updateQueueItem(item.id, { city: e.target.value })}
-                              className="bg-surface0 border border-surface1/80 rounded-lg px-2.5 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                              className="bg-surface0 border border-surface1/80 rounded-lg px-2 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
                               placeholder="City"
                             />
                             <input
                               type="text"
                               value={item.province}
                               onChange={(e) => updateQueueItem(item.id, { province: e.target.value })}
-                              className="bg-surface0 border border-surface1/80 rounded-lg px-2.5 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                              className="bg-surface0 border border-surface1/80 rounded-lg px-2 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
                               placeholder="Province"
                             />
                             <input
                               type="text"
                               value={item.country}
                               onChange={(e) => updateQueueItem(item.id, { country: e.target.value })}
-                              className="bg-surface0 border border-surface1/80 rounded-lg px-2.5 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                              className="bg-surface0 border border-surface1/80 rounded-lg px-2 py-1.5 text-xs text-text placeholder:text-overlay0 outline-none focus:border-mauve"
                               placeholder="Country"
                             />
                           </div>
@@ -987,13 +1372,12 @@ export default function AdminGalleryClient() {
                             type="text"
                             value={item.tags.join(", ")}
                             onChange={(e) => updateQueueItem(item.id, { tags: e.target.value.split(",").map(t => t.trim()).filter(Boolean) })}
-                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve transition-colors"
-                            placeholder="Nature, Travel, Landscape..."
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve"
+                            placeholder="nature, landscape, travel..."
                           />
                         </div>
 
                         <div className="flex items-center justify-between pt-2 border-t border-surface0/50">
-                          {/* Publish directly status toggle */}
                           <label className="flex items-center gap-2 cursor-pointer select-none">
                             <input
                               type="checkbox"
@@ -1004,31 +1388,41 @@ export default function AdminGalleryClient() {
                             <span className="text-xs font-semibold text-subtext1">Publish Immediately</span>
                           </label>
 
-                          {/* Individual action buttons */}
                           <div className="flex gap-2">
                             <button
                               type="button"
                               onClick={() => removeQueueItem(item.id)}
                               disabled={item.uploading}
                               className="p-2 bg-surface0 hover:bg-red/10 text-subtext1 hover:text-red border border-surface1 hover:border-red/20 rounded-lg transition-colors cursor-pointer"
-                              title="Discard upload"
+                              title="Discard pending photo"
                             >
                               <Trash2 size={16} />
                             </button>
+                            
+                            <button
+                              type="button"
+                              onClick={() => generateAiMetadata(item.id)}
+                              disabled={aiLoadingMap[item.id] || item.uploading}
+                              className="p-2 bg-surface0 hover:bg-mauve/20 text-mauve border border-surface1 hover:border-mauve/30 rounded-lg transition-colors cursor-pointer"
+                              title="AI Auto-Fill fields"
+                            >
+                              <Sparkles size={16} />
+                            </button>
+
                             <button
                               type="button"
                               onClick={() => savePhotoItem(item.id)}
-                              disabled={item.uploading}
-                              className="flex items-center gap-1.5 bg-mauve text-base px-3 py-1.5 rounded-lg font-semibold hover:bg-opacity-95 disabled:opacity-50 cursor-pointer text-xs"
+                              disabled={item.uploading || aiLoadingMap[item.id]}
+                              className="flex items-center gap-1.5 bg-mauve text-base px-3.5 py-2 rounded-lg font-bold hover:bg-opacity-95 disabled:opacity-50 cursor-pointer text-xs"
                             >
                               {item.uploading ? (
                                 <>
-                                  <Loader2 size={14} className="animate-spin" />
+                                  <Loader2 size={13} className="animate-spin" />
                                   <span>{item.uploadProgress}%</span>
                                 </>
                               ) : (
                                 <>
-                                  <Save size={14} />
+                                  <Save size={13} />
                                   <span>Save</span>
                                 </>
                               )}
@@ -1037,12 +1431,91 @@ export default function AdminGalleryClient() {
                         </div>
 
                         {item.error && (
-                          <div className="text-red text-xs mt-1 bg-red/15 border border-red/20 p-2 rounded-lg flex items-center gap-1">
+                          <div className="text-red text-xs mt-1 bg-red/15 border border-red/20 p-2.5 rounded-lg flex items-center gap-1">
                             <AlertCircle size={14} />
-                            <span className="font-medium">Error: {item.error}</span>
+                            <span className="font-semibold">Error: {item.error}</span>
                           </div>
                         )}
+                      </div>
 
+                      {/* Comparison upload & slot swapping */}
+                      <div className="col-span-full border-t border-surface0/60 pt-4 mt-2">
+                        <label className="text-xs font-semibold text-subtext1 mb-2 block">Comparison Images</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-4">
+                          
+                          {/* Edited image preview */}
+                          <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                            <span className="text-[10px] uppercase font-bold text-mauve tracking-wider mb-2">Edited Version (Main)</span>
+                            <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative">
+                              <img src={item.previewUrl} alt="Edited preview" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="text-[10px] text-subtext0 truncate max-w-[150px] font-mono">{item.editedFile.name}</span>
+                          </div>
+
+                          {/* Swap button */}
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => handleSwapSlots(item.id)}
+                              disabled={!item.originalFile}
+                              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                                item.originalFile
+                                  ? "bg-surface0 border-surface1 hover:bg-surface1 text-text cursor-pointer active:scale-95"
+                                  : "bg-surface0/10 border-surface0/30 text-overlay0 cursor-not-allowed"
+                              }`}
+                              title={item.originalFile ? "Swap Edited and Original slots" : "Add an original photo comparison below to enable swapping"}
+                            >
+                              <RefreshCw size={12} />
+                              <span>⇄ Swap Slots</span>
+                            </button>
+                          </div>
+
+                          {/* Original image slot */}
+                          <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center relative">
+                            <span className="text-[10px] uppercase font-bold text-subtext1 tracking-wider mb-2">Original Version (Comparison)</span>
+                            
+                            {item.originalFile ? (
+                              <>
+                                <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative">
+                                  <img 
+                                    src={item.originalPreviewUrl} 
+                                    alt="Original preview"
+                                    className="w-full h-full object-cover" 
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      URL.revokeObjectURL(item.originalPreviewUrl);
+                                      updateQueueItem(item.id, { originalFile: null, originalPreviewUrl: "" });
+                                    }}
+                                    className="absolute -top-1.5 -right-1.5 bg-red text-crust rounded-full p-0.5 hover:scale-105 transition-transform cursor-pointer"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-subtext0 truncate max-w-[150px] font-mono">{item.originalFile.name}</span>
+                              </>
+                            ) : (
+                              <div className="relative border border-dashed border-surface2/60 rounded-lg w-24 h-18 flex items-center justify-center bg-black/20 hover:border-mauve transition-colors">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      updateQueueItem(item.id, { 
+                                        originalFile: e.target.files[0],
+                                        originalPreviewUrl: URL.createObjectURL(e.target.files[0])
+                                      });
+                                    }
+                                  }}
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                />
+                                <Plus size={16} className="text-overlay0" />
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
                       </div>
 
                     </div>
@@ -1056,9 +1529,9 @@ export default function AdminGalleryClient() {
             <div className="note-block bg-crust/50 border-l-mauve p-6 rounded-xl flex items-start gap-4">
               <Sparkles className="text-mauve shrink-0 mt-0.5" size={20} />
               <div>
-                <h4 className="font-bold text-text mb-1 italic">Tip for your 283 photos:</h4>
+                <h4 className="font-bold text-text mb-1 italic">Vibe check for uploading:</h4>
                 <p className="text-sm text-subtext0 leading-relaxed font-sans font-normal">
-                  Drop them here in small batches (e.g. 10–20 files at a time). Our tool will instantly parse all dates and geotags in the background, geocoding coordinates sequentially. You can edit details in the forms and hit <strong className="text-mauve font-semibold">Save</strong> when ready!
+                  Drop your images in. We will check for duplicate files instantly in the browser. You can click <strong className="text-mauve font-semibold">AI Auto-Fill</strong> to automatically generate gorgeous tags, titles, and descriptions!
                 </p>
               </div>
             </div>
@@ -1071,12 +1544,12 @@ export default function AdminGalleryClient() {
       {activeTab === "manage" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold">Existing Photos</h3>
+            <h3 className="text-xl font-bold">Existing Gallery Photos</h3>
             <button
               onClick={fetchExistingPhotos}
               className="text-xs bg-surface0 border border-surface1 hover:bg-surface1 px-3 py-1.5 rounded-lg transition-colors font-mono cursor-pointer"
             >
-              Refresh
+              Refresh List
             </button>
           </div>
 
@@ -1087,7 +1560,7 @@ export default function AdminGalleryClient() {
             </div>
           ) : existingPhotos.length === 0 ? (
             <div className="text-center py-20 bg-crust/30 border border-surface0/60 rounded-2xl">
-              <p className="text-subtext0">No photos found in database. Go back to upload!</p>
+              <p className="text-subtext0">No photos found. Upload some above!</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1096,7 +1569,6 @@ export default function AdminGalleryClient() {
                   key={photo.id}
                   className="bg-crust border border-surface0/60 rounded-xl overflow-hidden flex flex-col group relative"
                 >
-                  {/* Status label (Draft / Published) */}
                   <div className="absolute top-3 left-3 z-10 flex gap-2">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border backdrop-blur-md ${
                       photo.published 
@@ -1116,11 +1588,10 @@ export default function AdminGalleryClient() {
                       <h4 className="font-bold text-lg truncate mb-1">{photo.title}</h4>
                       <p className="text-xs text-subtext0 line-clamp-2 mb-3">{photo.description || "No description"}</p>
                       
-                      {/* Location and Date indicators */}
                       <div className="flex flex-wrap gap-2 text-[10px] font-mono text-subtext1 mb-4">
                         {photo.date && (
                           <span className="flex items-center gap-1 bg-surface0 border border-surface1/60 px-2 py-0.5 rounded-full">
-                            <Calendar size={10} className="text-mauve" /> {photo.date}
+                            <Calendar size={10} className="text-mauve" /> {new Date(photo.date).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })}
                           </span>
                         )}
                         {(photo.city || photo.country) && (
@@ -1167,6 +1638,140 @@ export default function AdminGalleryClient() {
           )}
         </div>
       )}
+
+      {/* DUPLICATE RESOLUTION MODAL */}
+      <AnimatePresence>
+        {pendingDuplicates.length > 0 && (
+          <div className="fixed inset-0 bg-base/90 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-crust border border-surface0 p-6 rounded-2xl max-w-md w-full shadow-2xl flex flex-col gap-6"
+            >
+              <div className="text-center">
+                <div className="p-3 bg-red/10 border border-red/20 rounded-full text-red w-fit mx-auto mb-3">
+                  <AlertCircle size={28} />
+                </div>
+                <h3 className="text-xl font-bold text-text">Duplicate Image Detected</h3>
+                <p className="text-xs text-subtext0 mt-2">
+                  The file <code className="bg-surface0 px-1 py-0.5 rounded text-red">{pendingDuplicates[0].file.name}</code> has the exact same content as a photo already in the {pendingDuplicates[0].matchedSource === "database" ? "published gallery" : "upload queue"} (matches: &quot;{pendingDuplicates[0].matchedTitle}&quot;).
+                </p>
+              </div>
+
+              {/* Image Preview */}
+              <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-black/40 border border-surface1 relative">
+                <img src={pendingDuplicates[0].previewUrl} alt="Duplicate preview" className="w-full h-full object-contain" />
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => resolveDuplicate(false)}
+                  className="bg-surface0 border border-surface1 hover:bg-surface1 text-text py-2.5 rounded-xl font-semibold transition-all cursor-pointer text-xs"
+                >
+                  Skip File
+                </button>
+                <button
+                  onClick={() => resolveDuplicate(true)}
+                  className="bg-mauve text-base hover:bg-opacity-90 text-crust py-2.5 rounded-xl font-bold transition-all cursor-pointer text-xs"
+                >
+                  Upload Anyway
+                </button>
+
+                <button
+                  onClick={skipAllDuplicates}
+                  className="col-span-1 bg-surface0/40 hover:bg-surface0 border border-surface1/60 text-subtext1 py-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer"
+                >
+                  Skip All Remaining ({pendingDuplicates.length})
+                </button>
+                <button
+                  onClick={uploadAllDuplicates}
+                  className="col-span-1 bg-surface0/40 hover:bg-surface0 border border-surface1/60 text-subtext1 py-2 rounded-xl text-[10px] font-semibold transition-all cursor-pointer"
+                >
+                  Upload All Remaining ({pendingDuplicates.length})
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* AI CONFIGURATION MODAL */}
+      <AnimatePresence>
+        {showAiSettings && (
+          <div className="fixed inset-0 bg-base/80 backdrop-blur-md z-[130] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-crust border border-surface0 p-6 rounded-2xl max-w-md w-full shadow-2xl"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-mauve flex items-center gap-2">
+                  <Settings size={20} /> Vision AI Settings
+                </h3>
+                <button onClick={() => setShowAiSettings(false)} className="text-subtext0 hover:text-text cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAiSettings} className="space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-subtext1 mb-1 block">API Base URL</label>
+                  <input
+                    type="text"
+                    value={aiBaseUrl}
+                    onChange={(e) => setAiBaseUrl(e.target.value)}
+                    className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
+                    placeholder="https://api.openai.com/v1"
+                    required
+                  />
+                  <span className="text-[10px] text-overlay0 mt-1 block">Compatible with standard OpenAI API specs.</span>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-subtext1 mb-1 block">API Key</label>
+                  <input
+                    type="password"
+                    value={aiApiKey}
+                    onChange={(e) => setAiApiKey(e.target.value)}
+                    className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
+                    placeholder="sk-..."
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-subtext1 mb-1 block">Model Name</label>
+                  <input
+                    type="text"
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value)}
+                    className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
+                    placeholder="gpt-4o-mini"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-surface0">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiSettings(false)}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-surface0 border border-surface1 hover:bg-surface1 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-mauve text-base px-5 py-2 rounded-lg font-bold hover:bg-opacity-95 transition-all cursor-pointer text-xs"
+                  >
+                    Save Config
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* EDIT MODAL FOR EXISTING PHOTOS */}
       <AnimatePresence>
@@ -1227,16 +1832,18 @@ export default function AdminGalleryClient() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs font-semibold text-subtext1 mb-1 block">Date</label>
+                        {/* datetime-local editing for existing images */}
+                        <label className="text-xs font-semibold text-subtext1 mb-1 block">Date & Time</label>
                         <input
-                          type="date"
-                          value={editingPhoto.date}
+                          type="datetime-local"
+                          step="1"
+                          value={editingPhoto.date ? formatDateToLocalDatetime(editingPhoto.date) : ""}
                           onChange={(e) => {
-                            const dateVal = e.target.value;
-                            const yearVal = dateVal ? new Date(dateVal).getFullYear().toString() : editingPhoto.year;
-                            setEditingPhoto({ ...editingPhoto, date: dateVal, year: yearVal });
+                            const val = e.target.value;
+                            const yearVal = val ? new Date(val).getFullYear().toString() : editingPhoto.year;
+                            setEditingPhoto({ ...editingPhoto, date: val, year: yearVal });
                           }}
-                          className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-1.5 text-sm text-text outline-none focus:border-mauve"
+                          className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-1.5 text-xs text-text outline-none focus:border-mauve"
                         />
                       </div>
                       <div>

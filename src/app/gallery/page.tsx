@@ -22,17 +22,6 @@ export default async function GalleryPage() {
 
   const photos = photographyData || [];
 
-  // Group photos by year
-  const photosByYear = photos.reduce((acc, photo) => {
-    if (!acc[photo.year]) {
-      acc[photo.year] = [];
-    }
-    acc[photo.year].push(photo);
-    return acc;
-  }, {} as Record<string, typeof photos>);
-
-  const sortedYears = Object.keys(photosByYear).sort((a, b) => Number(b) - Number(a));
-
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
       <div className="mb-12">
@@ -49,7 +38,7 @@ export default async function GalleryPage() {
       )}
 
       {photos.length > 0 && (
-        <GalleryClient photosByYear={photosByYear} sortedYears={sortedYears} />
+        <GalleryClient photos={photos} />
       )}
     </div>
   );

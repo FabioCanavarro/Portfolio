@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         title: photo.title || "Untitled",
         description: photo.description || "",
         backstory: photo.backstory || "",
-        date: photo.date || new Date().toISOString().split('T')[0],
+        date: photo.date || new Date().toISOString(),
         year: photo.year || new Date().getFullYear().toString(),
         tags: Array.isArray(photo.tags) ? photo.tags : [],
         original: photo.original || "",
@@ -143,6 +143,7 @@ export async function POST(request: NextRequest) {
         province: photo.province || "",
         country: photo.country || "",
         published: photo.published !== undefined ? photo.published : false,
+        hash: photo.hash || null,
       };
 
       console.log("Saving photo:", row);
