@@ -84,17 +84,49 @@ function formatDateToLocalDatetime(dateStr: string) {
   return "";
 }
 
-// Helper to convert File to base64
-function fileToBase64(file: File): Promise<string> {
+// Helper to resize image and convert to lightweight base64 for AI Vision analysis
+function resizeImageForAi(file: File, maxDimension: number = 800): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.substring(result.indexOf(",") + 1);
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(file);
+    
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > height) {
+        if (width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context is unavailable"));
+        return;
+      }
+      
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Export as a medium-quality JPEG to keep payload under ~100KB
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      const base64 = dataUrl.substring(dataUrl.indexOf(",") + 1);
       resolve(base64);
     };
-    reader.onerror = (error) => reject(error);
+    
+    img.onerror = (error) => reject(error);
   });
 }
 
@@ -605,7 +637,7 @@ export default function AdminGalleryClient() {
     setAiLoadingMap(prev => ({ ...prev, [itemId]: true }));
 
     try {
-      const base64 = await fileToBase64(item.editedFile);
+      const base64 = await resizeImageForAi(item.editedFile);
       
       const response = await fetch("/api/gallery/ai", {
         method: "POST",
