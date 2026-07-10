@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X, Layers, Sparkles } from "lucide-react";
+import { Search, Filter, Calendar, MapPin, ChevronDown, SlidersHorizontal, Eye, X, Layers, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import PhotoCard from "./PhotoCard";
 import Lightbox from "./Lightbox";
 
@@ -111,6 +111,7 @@ export default function GalleryClient({ photos }: Props) {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
   const [originalRatio, setOriginalRatio] = useState(true);
+  const [activeProudIndex, setActiveProudIndex] = useState(0);
 
 
   const proudPhotos = useMemo(() => {
@@ -375,11 +376,134 @@ export default function GalleryClient({ photos }: Props) {
             <span className="text-[10px] text-subtext0 font-mono tracking-widest uppercase">Proud Selection</span>
           </div>
 
-          <MasonryGrid
-            photos={proudPhotos}
-            onPhotoClick={setSelectedPhoto}
-            originalRatio={originalRatio}
-          />
+          <div className="relative w-full h-[320px] sm:h-[400px] md:h-[480px] flex items-center justify-center overflow-hidden py-4">
+            {proudPhotos.length === 1 ? (
+              // 1 proud photo fallback
+              <div 
+                onClick={() => setSelectedPhoto(proudPhotos[0])}
+                className="relative w-[80%] md:w-[50%] h-full rounded-2xl overflow-hidden bg-black/60 border border-yellow/30 shadow-[0_0_20px_rgba(249,226,175,0.15)] cursor-pointer hover:border-yellow transition-all"
+              >
+                <img src={proudPhotos[0].edited} alt={proudPhotos[0].title} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-end p-4">
+                  <h3 className="text-base sm:text-lg font-bold text-text truncate">{proudPhotos[0].title}</h3>
+                  <p className="text-xs text-subtext0 font-mono">📍 {proudPhotos[0].city || proudPhotos[0].country}</p>
+                </div>
+              </div>
+            ) : proudPhotos.length === 2 ? (
+              // 2 proud photos layout
+              <div className="w-full h-full flex gap-4 justify-center items-center">
+                {proudPhotos.map((photo) => (
+                  <div 
+                    key={photo.id}
+                    onClick={() => setSelectedPhoto(photo)}
+                    className="relative w-[45%] h-[90%] rounded-2xl overflow-hidden bg-black/60 border border-yellow/20 hover:border-yellow cursor-pointer transition-all"
+                  >
+                    <img src={photo.edited} alt={photo.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-end p-4">
+                      <h3 className="text-sm sm:text-base font-bold text-text truncate">{photo.title}</h3>
+                      <p className="text-[10px] text-subtext0 font-mono">📍 {photo.city || photo.country}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              // 3D Coverflow slider layout
+              <>
+                {/* Left Card (Previous) */}
+                <div 
+                  onClick={() => {
+                    const prevIdx = (activeProudIndex - 1 + proudPhotos.length) % proudPhotos.length;
+                    setActiveProudIndex(prevIdx);
+                  }}
+                  className="absolute left-[2%] sm:left-[10%] w-[25%] sm:w-[22%] h-[75%] sm:h-[80%] rounded-2xl overflow-hidden bg-black/40 border border-surface0/45 cursor-pointer filter blur-[2.5px] opacity-40 hover:opacity-60 transition-all duration-500 z-10 scale-90"
+                  title="Previous Featured"
+                >
+                  <img src={proudPhotos[(activeProudIndex - 1 + proudPhotos.length) % proudPhotos.length].edited} alt="Previous" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/30" />
+                </div>
+
+                {/* Left Navigation Click Overlay */}
+                <button
+                  onClick={() => {
+                    const prevIdx = (activeProudIndex - 1 + proudPhotos.length) % proudPhotos.length;
+                    setActiveProudIndex(prevIdx);
+                  }}
+                  className="absolute left-[2%] sm:left-[10%] w-[25%] sm:w-[22%] h-[75%] sm:h-[80%] z-30 opacity-0 cursor-pointer"
+                  aria-label="Previous image"
+                />
+
+                {/* Center Focused Card */}
+                <div 
+                  onClick={() => setSelectedPhoto(proudPhotos[activeProudIndex])}
+                  className="relative w-[46%] sm:w-[42%] h-full rounded-2xl sm:rounded-3xl overflow-hidden bg-black/60 border border-yellow/30 shadow-[0_0_30px_rgba(249,226,175,0.15)] cursor-pointer z-20 hover:scale-[1.02] hover:border-yellow/70 hover:shadow-[0_0_40px_rgba(249,226,175,0.25)] transition-all duration-500 flex flex-col justify-end"
+                >
+                  <img 
+                    src={proudPhotos[activeProudIndex].edited} 
+                    alt={proudPhotos[activeProudIndex].title} 
+                    className="absolute inset-0 w-full h-full object-cover animate-fade-in" 
+                    key={proudPhotos[activeProudIndex].id}
+                  />
+                  {/* Ambient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent z-10" />
+                  
+                  {/* Floating description details */}
+                  <div className="relative p-4 sm:p-6 z-20 space-y-1 select-none">
+                    <span className="text-[9px] uppercase font-mono tracking-widest text-yellow font-bold bg-yellow/10 px-2 py-0.5 rounded border border-yellow/20">Featured Masterpiece</span>
+                    <h3 className="text-base sm:text-xl font-black text-text drop-shadow-md truncate pt-1">{proudPhotos[activeProudIndex].title}</h3>
+                    <p className="text-[10px] sm:text-xs text-subtext0 font-mono flex items-center gap-1 drop-shadow">
+                      <span>📍</span>
+                      <span>{proudPhotos[activeProudIndex].specific_location || [proudPhotos[activeProudIndex].city, proudPhotos[activeProudIndex].country].filter(Boolean).join(", ")}</span>
+                    </p>
+                  </div>
+
+                  {/* Left / Right chevron indicators inside active card */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const prevIdx = (activeProudIndex - 1 + proudPhotos.length) % proudPhotos.length;
+                      setActiveProudIndex(prevIdx);
+                    }}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 bg-black/40 hover:bg-black/60 text-text rounded-full z-35 transition-transform active:scale-90 border border-surface1/20"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const nextIdx = (activeProudIndex + 1) % proudPhotos.length;
+                      setActiveProudIndex(nextIdx);
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 bg-black/40 hover:bg-black/60 text-text rounded-full z-35 transition-transform active:scale-90 border border-surface1/20"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Right Navigation Click Overlay */}
+                <button
+                  onClick={() => {
+                    const nextIdx = (activeProudIndex + 1) % proudPhotos.length;
+                    setActiveProudIndex(nextIdx);
+                  }}
+                  className="absolute right-[2%] sm:right-[10%] w-[25%] sm:w-[22%] h-[75%] sm:h-[80%] z-30 opacity-0 cursor-pointer"
+                  aria-label="Next image"
+                />
+
+                {/* Right Card (Next) */}
+                <div 
+                  onClick={() => {
+                    const nextIdx = (activeProudIndex + 1) % proudPhotos.length;
+                    setActiveProudIndex(nextIdx);
+                  }}
+                  className="absolute right-[2%] sm:right-[10%] w-[25%] sm:w-[22%] h-[75%] sm:h-[80%] rounded-2xl overflow-hidden bg-black/40 border border-surface0/45 cursor-pointer filter blur-[2.5px] opacity-40 hover:opacity-60 transition-all duration-500 z-10 scale-90"
+                  title="Next Featured"
+                >
+                  <img src={proudPhotos[(activeProudIndex + 1) % proudPhotos.length].edited} alt="Next" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/30" />
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

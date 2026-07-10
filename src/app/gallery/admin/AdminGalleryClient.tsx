@@ -55,6 +55,11 @@ interface UploadItem {
   variations: string[];
   category: string;
   primary_type: string;
+  originalLocation?: {
+    city: string;
+    province: string;
+    country: string;
+  };
   
   // File details
   editedFile: File;
@@ -384,6 +389,11 @@ export default function AdminGalleryClient() {
                   country,
                   description: qItem.description || (formattedLoc ? `Captured in ${formattedLoc}` : ""),
                   geocoding: false,
+                  originalLocation: {
+                    city,
+                    province,
+                    country
+                  }
                 };
               }
               return qItem;
@@ -520,7 +530,8 @@ export default function AdminGalleryClient() {
             variationPreviewUrls: [],
             variations: [],
             category: "Scenery",
-            primary_type: "edited"
+            primary_type: "edited",
+            originalLocation: { city: "", province: "", country: "" }
           };
           
           validItems.push(item);
@@ -638,7 +649,8 @@ export default function AdminGalleryClient() {
         variationPreviewUrls: [],
         variations: [],
         category: "Scenery",
-        primary_type: "edited"
+        primary_type: "edited",
+        originalLocation: { city: "", province: "", country: "" }
       };
       
       setUploadQueue((prev) => [...prev, item]);
@@ -698,7 +710,8 @@ export default function AdminGalleryClient() {
         variationPreviewUrls: [],
         variations: [],
         category: "Scenery",
-        primary_type: "edited"
+        primary_type: "edited",
+        originalLocation: { city: "", province: "", country: "" }
       });
     }
 
@@ -733,40 +746,227 @@ export default function AdminGalleryClient() {
     );
   };
 
-  const handleMergeDrop = async (e: React.DragEvent, targetId: string, slot: "original" | "edited" | "variations") => {
+  const handleMergeDrop = async (
+    e: React.DragEvent, 
+    targetId: string, 
+    targetSlot: "original" | "edited" | "variations"
+  ) => {
     e.preventDefault();
     const sourceId = e.dataTransfer.getData("text/plain");
-    if (!sourceId || sourceId === targetId) return;
+    const dragSourceType = e.dataTransfer.getData("dragSourceType") || "card-main";
+    const variationIndexStr = e.dataTransfer.getData("variationIndex");
+    const variationIndex = variationIndexStr ? parseInt(variationIndexStr) : -1;
+
+    if (!sourceId || !targetId) return;
 
     const sourceItem = uploadQueue.find(q => q.id === sourceId);
     const targetItem = uploadQueue.find(q => q.id === targetId);
     if (!sourceItem || !targetItem) return;
 
-    console.log(`Merging queue item ${sourceId} into target item ${targetId} as slot ${slot}`);
+    // A. DRAGGING WITHIN THE SAME CARD
+    if (sourceId === targetId) {
+      if (dragSourceType === "edited" && targetSlot === "original") {
+        handleSwapSlots(targetId);
+      } else if (dragSourceType === "original" && targetSlot === "edited") {
+        handleSwapSlots(targetId);
+      } else if (dragSourceType === "variation" && targetSlot === "edited" && variationIndex !== -1) {
+        // Swap Edited with Variation
+        const oldEditedFile = targetItem.editedFile;
+        const oldPreviewUrl = targetItem.previewUrl;
+        
+        const newEditedFile = targetItem.variationFiles[variationIndex];
+        const newPreviewUrl = targetItem.variationPreviewUrls[variationIndex];
 
-    if (slot === "original") {
-      // Set target original file to source edited file
-      updateQueueItem(targetId, {
-        originalFile: sourceItem.editedFile,
-        originalPreviewUrl: sourceItem.previewUrl, // reuse URL
-      });
-    } else if (slot === "edited") {
-      // Set target edited file to source edited file
-      updateQueueItem(targetId, {
-        editedFile: sourceItem.editedFile,
-        previewUrl: sourceItem.previewUrl, // reuse URL
-        fileName: sourceItem.fileName,
-      });
-    } else if (slot === "variations") {
-      // Add source edited file to target variationFiles
-      updateQueueItem(targetId, {
-        variationFiles: [...targetItem.variationFiles, sourceItem.editedFile],
-        variationPreviewUrls: [...targetItem.variationPreviewUrls, sourceItem.previewUrl], // reuse URL
-      });
+        const newVariationFiles = [...targetItem.variationFiles];
+        newVariationFiles[variationIndex] = oldEditedFile;
+        const newVariationPreviewUrls = [...targetItem.variationPreviewUrls];
+        newVariationPreviewUrls[variationIndex] = oldPreviewUrl;
+
+        updateQueueItem(targetId, {
+          editedFile: newEditedFile,
+          previewUrl: newPreviewUrl,
+          fileName: newEditedFile.name,
+          variationFiles: newVariationFiles,
+          variationPreviewUrls: newVariationPreviewUrls
+        });
+      } else if (dragSourceType === "variation" && targetSlot === "original" && variationIndex !== -1) {
+        // Swap Original with Variation
+        const oldOriginalFile = targetItem.originalFile;
+        const oldOriginalPreview = targetItem.originalPreviewUrl;
+
+        const newOriginalFile = targetItem.variationFiles[variationIndex];
+        const newOriginalPreview = targetItem.variationPreviewUrls[variationIndex];
+
+        let newVariationFiles = [...targetItem.variationFiles];
+        let newVariationPreviewUrls = [...targetItem.variationPreviewUrls];
+
+        if (oldOriginalFile) {
+          newVariationFiles[variationIndex] = oldOriginalFile;
+          newVariationPreviewUrls[variationIndex] = oldOriginalPreview;
+        } else {
+          newVariationFiles = newVariationFiles.filter((_, idx) => idx !== variationIndex);
+          newVariationPreviewUrls = newVariationPreviewUrls.filter((_, idx) => idx !== variationIndex);
+        }
+
+        updateQueueItem(targetId, {
+          originalFile: newOriginalFile,
+          originalPreviewUrl: newOriginalPreview,
+          variationFiles: newVariationFiles,
+          variationPreviewUrls: newVariationPreviewUrls
+        });
+      } else if (dragSourceType === "original" && targetSlot === "variations") {
+        // Move Original to Variations
+        if (targetItem.originalFile) {
+          updateQueueItem(targetId, {
+            variationFiles: [...targetItem.variationFiles, targetItem.originalFile],
+            variationPreviewUrls: [...targetItem.variationPreviewUrls, targetItem.originalPreviewUrl],
+            originalFile: null,
+            originalPreviewUrl: ""
+          });
+        }
+      } else if (dragSourceType === "edited" && targetSlot === "variations") {
+        // Move Edited to Variations
+        if (targetItem.originalFile) {
+          updateQueueItem(targetId, {
+            editedFile: targetItem.originalFile,
+            previewUrl: targetItem.originalPreviewUrl,
+            fileName: targetItem.originalFile.name,
+            originalFile: null,
+            originalPreviewUrl: "",
+            variationFiles: [...targetItem.variationFiles, targetItem.editedFile],
+            variationPreviewUrls: [...targetItem.variationPreviewUrls, targetItem.previewUrl]
+          });
+        } else if (targetItem.variationFiles.length > 0) {
+          const promoFile = targetItem.variationFiles[0];
+          const promoPreview = targetItem.variationPreviewUrls[0];
+          updateQueueItem(targetId, {
+            editedFile: promoFile,
+            previewUrl: promoPreview,
+            fileName: promoFile.name,
+            variationFiles: [...targetItem.variationFiles.slice(1), targetItem.editedFile],
+            variationPreviewUrls: [...targetItem.variationPreviewUrls.slice(1), targetItem.previewUrl]
+          });
+        } else {
+          alert("Cannot move Edited version to Variations when there are no other versions left.");
+        }
+      }
+    } 
+    // B. DRAGGING BETWEEN DIFFERENT CARDS
+    else {
+      let draggedFile: File | null = null;
+      let draggedPreview = "";
+
+      if (dragSourceType === "edited") {
+        draggedFile = sourceItem.editedFile;
+        draggedPreview = sourceItem.previewUrl;
+      } else if (dragSourceType === "original") {
+        draggedFile = sourceItem.originalFile;
+        draggedPreview = sourceItem.originalPreviewUrl;
+      } else if (dragSourceType === "variation" && variationIndex !== -1) {
+        draggedFile = sourceItem.variationFiles[variationIndex];
+        draggedPreview = sourceItem.variationPreviewUrls[variationIndex];
+      } else if (dragSourceType === "card-main") {
+        draggedFile = sourceItem.editedFile;
+        draggedPreview = sourceItem.previewUrl;
+      }
+
+      if (!draggedFile) return;
+
+      if (targetSlot === "original") {
+        const oldOriginalFile = targetItem.originalFile;
+        const oldOriginalPreview = targetItem.originalPreviewUrl;
+
+        updateQueueItem(targetId, {
+          originalFile: draggedFile,
+          originalPreviewUrl: draggedPreview
+        });
+
+        removeFileFromSourceCard(sourceItem, dragSourceType, variationIndex, oldOriginalFile, oldOriginalPreview);
+      } else if (targetSlot === "edited") {
+        const oldEditedFile = targetItem.editedFile;
+        const oldEditedPreview = targetItem.previewUrl;
+
+        updateQueueItem(targetId, {
+          editedFile: draggedFile,
+          previewUrl: draggedPreview,
+          fileName: draggedFile.name
+        });
+
+        removeFileFromSourceCard(sourceItem, dragSourceType, variationIndex, oldEditedFile, oldEditedPreview);
+      } else if (targetSlot === "variations") {
+        updateQueueItem(targetId, {
+          variationFiles: [...targetItem.variationFiles, draggedFile],
+          variationPreviewUrls: [...targetItem.variationPreviewUrls, draggedPreview]
+        });
+
+        removeFileFromSourceCard(sourceItem, dragSourceType, variationIndex, null, "");
+      }
+    }
+  };
+
+  const removeFileFromSourceCard = (
+    sourceItem: UploadItem,
+    dragSourceType: string,
+    variationIndex: number,
+    droppedOutboundFile: File | null,
+    droppedOutboundPreview: string
+  ) => {
+    const sourceId = sourceItem.id;
+    
+    if (dragSourceType === "card-main") {
+      setUploadQueue((prev) => prev.filter(q => q.id !== sourceId));
+      return;
     }
 
-    // Remove source item from queue without revoking previewUrl (since target is now using it!)
-    setUploadQueue((prev) => prev.filter(q => q.id !== sourceId));
+    if (dragSourceType === "edited") {
+      if (sourceItem.originalFile) {
+        updateQueueItem(sourceId, {
+          editedFile: sourceItem.originalFile,
+          previewUrl: sourceItem.originalPreviewUrl,
+          fileName: sourceItem.originalFile.name,
+          originalFile: droppedOutboundFile,
+          originalPreviewUrl: droppedOutboundPreview
+        });
+      } else if (sourceItem.variationFiles.length > 0) {
+        const promoFile = sourceItem.variationFiles[0];
+        const promoPreview = sourceItem.variationPreviewUrls[0];
+        
+        const newVariationFiles = sourceItem.variationFiles.slice(1);
+        const newVariationPreviews = sourceItem.variationPreviewUrls.slice(1);
+        if (droppedOutboundFile) {
+          newVariationFiles.push(droppedOutboundFile);
+          newVariationPreviews.push(droppedOutboundPreview);
+        }
+
+        updateQueueItem(sourceId, {
+          editedFile: promoFile,
+          previewUrl: promoPreview,
+          fileName: promoFile.name,
+          variationFiles: newVariationFiles,
+          variationPreviewUrls: newVariationPreviews
+        });
+      } else {
+        setUploadQueue((prev) => prev.filter(q => q.id !== sourceId));
+      }
+    } else if (dragSourceType === "original") {
+      updateQueueItem(sourceId, {
+        originalFile: droppedOutboundFile,
+        originalPreviewUrl: droppedOutboundPreview
+      });
+    } else if (dragSourceType === "variation" && variationIndex !== -1) {
+      const newVariationFiles = sourceItem.variationFiles.filter((_, idx) => idx !== variationIndex);
+      const newVariationPreviews = sourceItem.variationPreviewUrls.filter((_, idx) => idx !== variationIndex);
+
+      if (droppedOutboundFile) {
+        newVariationFiles.push(droppedOutboundFile);
+        newVariationPreviews.push(droppedOutboundPreview);
+      }
+
+      updateQueueItem(sourceId, {
+        variationFiles: newVariationFiles,
+        variationPreviewUrls: newVariationPreviews
+      });
+    }
   };
 
   // AI Settings functions
@@ -1689,6 +1889,26 @@ export default function AdminGalleryClient() {
                                   🌍 Apply to all
                                 </button>
                               )}
+                              {item.originalLocation && (
+                                (item.city !== item.originalLocation.city || 
+                                 item.province !== item.originalLocation.province || 
+                                 item.country !== item.originalLocation.country)
+                              ) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateQueueItem(item.id, {
+                                      city: item.originalLocation?.city || "",
+                                      province: item.originalLocation?.province || "",
+                                      country: item.originalLocation?.country || ""
+                                    });
+                                  }}
+                                  className="text-mauve hover:underline flex items-center gap-0.5 cursor-pointer bg-transparent border-none p-0"
+                                  title="Revert location back to photo's original EXIF values"
+                                >
+                                  ↩️ Revert
+                                </button>
+                              )}
                             </div>
                           </div>
                           <div className="grid grid-cols-3 gap-2">
@@ -1850,7 +2070,15 @@ export default function AdminGalleryClient() {
                             className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center transition-colors hover:bg-surface0/30"
                           >
                             <span className="text-[10px] uppercase font-bold text-mauve tracking-wider mb-2">Edited Version (Main)</span>
-                            <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative">
+                            <div 
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/plain", item.id);
+                                e.dataTransfer.setData("dragSourceType", "edited");
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative cursor-grab active:cursor-grabbing"
+                            >
                               <img src={item.previewUrl} alt="Edited preview" className="w-full h-full object-cover" />
                             </div>
                             <span className="text-[10px] text-subtext0 truncate max-w-[150px] font-mono">{item.editedFile.name}</span>
@@ -1887,7 +2115,15 @@ export default function AdminGalleryClient() {
                             
                             {item.originalFile ? (
                               <>
-                                <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative">
+                                <div 
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData("text/plain", item.id);
+                                    e.dataTransfer.setData("dragSourceType", "original");
+                                    e.dataTransfer.effectAllowed = "move";
+                                  }}
+                                  className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative cursor-grab active:cursor-grabbing"
+                                >
                                   <img 
                                     src={item.originalPreviewUrl} 
                                     alt="Original preview"
@@ -1953,7 +2189,17 @@ export default function AdminGalleryClient() {
 
                           {/* Local Pending Variations */}
                           {item.variationPreviewUrls.map((previewUrl, idx) => (
-                            <div key={`var-local-${idx}`} className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 relative group">
+                            <div 
+                              key={`var-local-${idx}`}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/plain", item.id);
+                                e.dataTransfer.setData("dragSourceType", "variation");
+                                e.dataTransfer.setData("variationIndex", idx.toString());
+                                e.dataTransfer.effectAllowed = "move";
+                              }}
+                              className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 relative group cursor-grab active:cursor-grabbing"
+                            >
                               <img src={previewUrl} alt="Variation preview" className="w-full h-full object-cover" />
                               <button
                                 type="button"
