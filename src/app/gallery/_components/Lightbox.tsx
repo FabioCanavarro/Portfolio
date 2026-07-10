@@ -38,6 +38,7 @@ export default function Lightbox({
 }) {
   const [activeVersionIndex, setActiveVersionIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [aspect, setAspect] = useState<number | null>(null);
 
   // Parse versions (Edited, Original, and Variations)
   const versions = useMemo(() => {
@@ -56,6 +57,15 @@ export default function Lightbox({
   }, [photo]);
 
   const currentImage = versions[activeVersionIndex]?.url || photo.edited;
+
+  useEffect(() => {
+    if (!currentImage) return;
+    const img = new window.Image();
+    img.src = currentImage;
+    img.onload = () => {
+      setAspect(img.naturalWidth / img.naturalHeight);
+    };
+  }, [currentImage]);
 
   // Reset active index to edited version when photo changes
   useEffect(() => {
@@ -154,7 +164,9 @@ export default function Lightbox({
         className={`relative flex flex-col lg:flex-row w-full overflow-hidden transition-all duration-300 ${
           isFullscreen 
             ? "w-screen h-screen max-w-none max-h-none border-none bg-black rounded-none" 
-            : "max-w-5xl max-h-[85vh] lg:max-h-[90vh] rounded-2xl bg-crust border border-surface0 shadow-2xl"
+            : `max-h-[85vh] lg:max-h-[90vh] rounded-2xl bg-crust border border-surface0 shadow-2xl ${
+                aspect && aspect > 1.1 ? "max-w-[95vw] lg:max-w-6xl" : "max-w-5xl lg:max-w-4xl"
+              }`
         }`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -188,7 +200,9 @@ export default function Lightbox({
         <div className={`relative shrink-0 bg-black/50 overflow-hidden flex items-center justify-center transition-all ${
           isFullscreen 
             ? "w-full h-full lg:w-full lg:h-full" 
-            : "w-full lg:w-2/3 h-[40vh] sm:h-[48vh] lg:h-auto"
+            : `w-full h-[40vh] sm:h-[48vh] lg:h-auto ${
+                aspect && aspect > 1.1 ? "lg:w-3/4" : "lg:w-3/5"
+              }`
         }`}>
           <motion.img
             key={currentImage}
@@ -249,7 +263,9 @@ export default function Lightbox({
 
         {/* Backstory & details */}
         {!isFullscreen && (
-          <div className="w-full lg:w-1/3 p-6 lg:p-8 flex flex-col bg-crust overflow-y-auto">
+          <div className={`w-full p-6 lg:p-8 flex flex-col bg-crust overflow-y-auto transition-all ${
+            aspect && aspect > 1.1 ? "lg:w-1/4" : "lg:w-2/5"
+          }`}>
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-text mb-3 tracking-tight">{photo.title}</h2>
               <div className="flex flex-wrap items-center gap-2 text-sm font-mono text-subtext0">

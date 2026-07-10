@@ -210,7 +210,7 @@ export async function POST(request: NextRequest) {
           const { category, primary_type, original, edited, ...fallbackRow } = {
             ...row,
             tags: fallbackTags
-          };
+          } as Record<string, unknown>;
           
           console.log("Retrying database write with fallback row:", fallbackRow);
           res = await writeFn(fallbackRow);
