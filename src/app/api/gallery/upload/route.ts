@@ -63,13 +63,31 @@ export async function GET(request: NextRequest) {
     // Map legacy column names to avoid frontend breaks
     const mappedPhotos = (photos || []).map((p) => {
       const dbPhoto = p as Record<string, unknown>;
+      
+      let parsedCategory = (dbPhoto.category as string) || "Scenery";
+      let parsedPrimaryType = (dbPhoto.primary_type as string) || "edited";
+      
+      const dbTags = Array.isArray(dbPhoto.tags) ? (dbPhoto.tags as string[]) : [];
+      const filteredTags = dbTags.filter(t => {
+        if (t.startsWith("cat:")) {
+          parsedCategory = t.substring(4);
+          return false;
+        }
+        if (t.startsWith("type:")) {
+          parsedPrimaryType = t.substring(5);
+          return false;
+        }
+        return true;
+      });
+
       return {
         ...dbPhoto,
         original: (dbPhoto.original as string) || (dbPhoto.original_url as string) || "",
         edited: (dbPhoto.edited as string) || (dbPhoto.edited_url as string) || "",
         variations: Array.isArray(dbPhoto.variations) ? dbPhoto.variations : [],
-        category: (dbPhoto.category as string) || "Scenery",
-        primary_type: (dbPhoto.primary_type as string) || "edited",
+        category: parsedCategory,
+        primary_type: parsedPrimaryType,
+        tags: filteredTags,
       };
     });
 
@@ -142,7 +160,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Photo data is required" }, { status: 400 });
       }
 
-      // Format row for database insertion
+      // Format row for database insertion. Map client-side properties (original/edited) 
+      // to database column names (original_url/edited_url).
+      const originalVal = photo.original || photo.original_url || "";
+      const editedVal = photo.edited || photo.edited_url || "";
+
       const row: Record<string, unknown> = {
         title: photo.title || "Untitled",
         description: photo.description || "",
@@ -155,8 +177,8 @@ export async function POST(request: NextRequest) {
         country: photo.country || "",
         published: photo.published !== undefined ? photo.published : false,
         hash: photo.hash || null,
-        original: photo.original || "",
-        edited: photo.edited || "",
+        original_url: originalVal,
+        edited_url: editedVal,
         specific_location: photo.specific_location || "",
         proud: photo.proud !== undefined ? photo.proud : false,
         width: photo.width || null,
@@ -166,30 +188,38 @@ export async function POST(request: NextRequest) {
         primary_type: photo.primary_type || "edited",
       };
 
-      console.log("Saving photo:", row);
+      console.log("Saving photo payload:", row);
 
-      // Helper function to retry DB write without new schema columns if they don't exist in DB yet
+      // Helper function to retry DB write with dynamically resolved fallback payloads
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const executeDbWriteWithFallback = async (writeFn: (rowPayload: any) => Promise<any>) => {
         let res = await writeFn(row);
         
         if (res.error && (res.error.message.includes("column") || res.error.message.includes("schema cache"))) {
-          console.warn("DB Write failed, attempting fallback query without custom fields:", res.error.message);
+          console.warn("First DB Write failed, checking for missing category/primary_type columns:", res.error.message);
           
-          // Strip new custom columns
-          const { specific_location, proud, width, height, variations, category, primary_type, ...legacyRow } = row;
-          res = await writeFn(legacyRow);
+          // Let's strip only the columns that might not exist in the database (category and primary_type).
+          // To preserve category and primary_type, we pack them into the tags array as special prefixed values:
+          // e.g. "cat:Scenery" and "type:edited"
+          const categoryTag = `cat:${row.category || "Scenery"}`;
+          const primaryTypeTag = `type:${row.primary_type || "edited"}`;
           
-          // If still fails with original/edited mismatch, fallback to legacy original_url/edited_url columns
+          const fallbackTags = [...(row.tags as string[]).filter(t => !t.startsWith("cat:") && !t.startsWith("type:")), categoryTag, primaryTypeTag];
+          
+          // Strip category, primary_type, original, edited (if present)
+          const { category, primary_type, original, edited, ...fallbackRow } = {
+            ...row,
+            tags: fallbackTags
+          };
+          
+          console.log("Retrying database write with fallback row:", fallbackRow);
+          res = await writeFn(fallbackRow);
+
+          // If still fails, fall back to legacy columns
           if (res.error && (res.error.message.includes("column") || res.error.message.includes("schema cache"))) {
-            console.warn("Second write failed, falling back to legacy url columns:", res.error.message);
-            const { original, edited, ...rest } = legacyRow;
-            const fallbackRow = {
-              ...rest,
-              original_url: original as string,
-              edited_url: edited as string,
-            };
-            res = await writeFn(fallbackRow);
+            console.warn("Second write failed, falling back to legacy row configuration:", res.error.message);
+            const { specific_location, proud, width, height, variations, ...legacyRow } = fallbackRow;
+            res = await writeFn(legacyRow);
           }
         }
         return res;
@@ -214,13 +244,32 @@ export async function POST(request: NextRequest) {
       }
 
       const savedItem = result.data[0] as Record<string, unknown>;
+      
+      // Parse category and primary_type from tags if they were saved in the fallback format
+      let parsedCategory = (savedItem.category as string) || "Scenery";
+      let parsedPrimaryType = (savedItem.primary_type as string) || "edited";
+      
+      const savedTags = Array.isArray(savedItem.tags) ? (savedItem.tags as string[]) : [];
+      const filteredTags = savedTags.filter(t => {
+        if (t.startsWith("cat:")) {
+          parsedCategory = t.substring(4);
+          return false;
+        }
+        if (t.startsWith("type:")) {
+          parsedPrimaryType = t.substring(5);
+          return false;
+        }
+        return true;
+      });
+
       const mappedSavedItem = {
         ...savedItem,
         original: (savedItem.original as string) || (savedItem.original_url as string) || "",
         edited: (savedItem.edited as string) || (savedItem.edited_url as string) || "",
         variations: Array.isArray(savedItem.variations) ? savedItem.variations : [],
-        category: (savedItem.category as string) || "Scenery",
-        primary_type: (savedItem.primary_type as string) || "edited",
+        category: parsedCategory,
+        primary_type: parsedPrimaryType,
+        tags: filteredTags,
       };
 
       return NextResponse.json({ success: true, photo: mappedSavedItem });

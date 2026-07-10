@@ -22,10 +22,31 @@ export default async function GalleryPage() {
 
   const photos = (photographyData || []).map((photo) => {
     const raw = photo as unknown as Record<string, unknown>;
+    
+    let parsedCategory = (raw.category as string) || "Scenery";
+    let parsedPrimaryType = (raw.primary_type as string) || "edited";
+    
+    const dbTags = Array.isArray(raw.tags) ? (raw.tags as string[]) : [];
+    const filteredTags = dbTags.filter(t => {
+      if (t.startsWith("cat:")) {
+        parsedCategory = t.substring(4);
+        return false;
+      }
+      if (t.startsWith("type:")) {
+        parsedPrimaryType = t.substring(5);
+        return false;
+      }
+      return true;
+    });
+
     return {
       ...photo,
       original: (raw.original as string) || (raw.original_url as string) || "",
       edited: (raw.edited as string) || (raw.edited_url as string) || "",
+      variations: Array.isArray(raw.variations) ? raw.variations : [],
+      category: parsedCategory,
+      primary_type: parsedPrimaryType,
+      tags: filteredTags,
     };
   }) as unknown as Parameters<typeof GalleryClient>[0]["photos"];
 
