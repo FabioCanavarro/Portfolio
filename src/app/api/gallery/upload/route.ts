@@ -68,6 +68,8 @@ export async function GET(request: NextRequest) {
         original: (dbPhoto.original as string) || (dbPhoto.original_url as string) || "",
         edited: (dbPhoto.edited as string) || (dbPhoto.edited_url as string) || "",
         variations: Array.isArray(dbPhoto.variations) ? dbPhoto.variations : [],
+        category: (dbPhoto.category as string) || "Scenery",
+        primary_type: (dbPhoto.primary_type as string) || "edited",
       };
     });
 
@@ -160,6 +162,8 @@ export async function POST(request: NextRequest) {
         width: photo.width || null,
         height: photo.height || null,
         variations: Array.isArray(photo.variations) ? photo.variations : [],
+        category: photo.category || "Scenery",
+        primary_type: photo.primary_type || "edited",
       };
 
       console.log("Saving photo:", row);
@@ -173,7 +177,7 @@ export async function POST(request: NextRequest) {
           console.warn("DB Write failed, attempting fallback query without custom fields:", res.error.message);
           
           // Strip new custom columns
-          const { specific_location, proud, width, height, variations, ...legacyRow } = row;
+          const { specific_location, proud, width, height, variations, category, primary_type, ...legacyRow } = row;
           res = await writeFn(legacyRow);
           
           // If still fails with original/edited mismatch, fallback to legacy original_url/edited_url columns
@@ -215,6 +219,8 @@ export async function POST(request: NextRequest) {
         original: (savedItem.original as string) || (savedItem.original_url as string) || "",
         edited: (savedItem.edited as string) || (savedItem.edited_url as string) || "",
         variations: Array.isArray(savedItem.variations) ? savedItem.variations : [],
+        category: (savedItem.category as string) || "Scenery",
+        primary_type: (savedItem.primary_type as string) || "edited",
       };
 
       return NextResponse.json({ success: true, photo: mappedSavedItem });

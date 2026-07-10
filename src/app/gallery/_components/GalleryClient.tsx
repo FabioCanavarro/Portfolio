@@ -23,6 +23,8 @@ type Photo = {
   specific_location?: string;
   proud?: boolean;
   variations?: string[];
+  category?: string;
+  primary_type?: string;
 };
 
 type Props = {
@@ -106,6 +108,7 @@ export default function GalleryClient({ photos }: Props) {
   // Search, filter, and sort states
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTag, setSelectedTag] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
   const [originalRatio, setOriginalRatio] = useState(true);
 
@@ -163,7 +166,10 @@ export default function GalleryClient({ photos }: Props) {
       // Tag match
       const matchesTag = selectedTag === "all" || photo.tags?.includes(selectedTag);
 
-      return matchesSearch && matchesTag;
+      // Category match
+      const matchesCategory = selectedCategory === "all" || (photo.category || "Scenery").toLowerCase() === selectedCategory.toLowerCase();
+
+      return matchesSearch && matchesTag && matchesCategory;
     });
 
     // 2. Sort
@@ -196,7 +202,7 @@ export default function GalleryClient({ photos }: Props) {
     });
 
     return result;
-  }, [photos, searchQuery, selectedTag, sortBy]);
+  }, [photos, searchQuery, selectedTag, selectedCategory, sortBy]);
 
   // Lightbox active navigation lists
   const activePhotosList = useMemo(() => {
@@ -260,6 +266,27 @@ export default function GalleryClient({ photos }: Props) {
 
   return (
     <div className="space-y-12">
+      {/* Category Tab Bar Filter */}
+      <div className="flex flex-wrap items-center justify-center gap-2 pb-2">
+        {["all", "scenery", "people", "buildings", "street", "others"].map((cat) => {
+          const displayLabel = cat === "all" ? "All Categories" : cat.charAt(0).toUpperCase() + cat.slice(1);
+          const isActive = selectedCategory === cat;
+          return (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all duration-300 cursor-pointer ${
+                isActive
+                  ? "bg-mauve text-crust border-mauve shadow-lg shadow-mauve/20 scale-105"
+                  : "bg-surface0/45 border-surface1/60 text-subtext1 hover:text-text hover:border-surface1"
+              }`}
+            >
+              {displayLabel}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Control Panel */}
       <div className="bg-crust/50 border border-surface0/70 p-5 rounded-2xl backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Search */}

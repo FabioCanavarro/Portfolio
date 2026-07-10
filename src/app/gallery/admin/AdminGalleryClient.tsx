@@ -28,6 +28,8 @@ type Photo = {
   width?: number;
   height?: number;
   variations?: string[];
+  category?: string;
+  primary_type?: string;
 };
 
 interface UploadItem {
@@ -51,6 +53,8 @@ interface UploadItem {
   variationFiles: File[];
   variationPreviewUrls: string[];
   variations: string[];
+  category: string;
+  primary_type: string;
   
   // File details
   editedFile: File;
@@ -199,6 +203,14 @@ export default function AdminGalleryClient() {
   const [photosLoading, setPhotosLoading] = useState(false);
   const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Edit modal file management state
+  const [editEditedFile, setEditEditedFile] = useState<File | null>(null);
+  const [editEditedPreview, setEditEditedPreview] = useState<string>("");
+  const [editOriginalFile, setEditOriginalFile] = useState<File | null>(null);
+  const [editOriginalPreview, setEditOriginalPreview] = useState<string>("");
+  const [editVariationFiles, setEditVariationFiles] = useState<File[]>([]);
+  const [editVariationPreviews, setEditVariationPreviews] = useState<string[]>([]);
 
   // Geocoding queue refs to avoid rate limits
   const geocodeQueue = useRef<{ id: string; lat: number; lon: number }[]>([]);
@@ -506,7 +518,9 @@ export default function AdminGalleryClient() {
             height: dimensions.height,
             variationFiles: [],
             variationPreviewUrls: [],
-            variations: []
+            variations: [],
+            category: "Scenery",
+            primary_type: "edited"
           };
           
           validItems.push(item);
@@ -622,7 +636,9 @@ export default function AdminGalleryClient() {
         height: dimensions.height,
         variationFiles: [],
         variationPreviewUrls: [],
-        variations: []
+        variations: [],
+        category: "Scenery",
+        primary_type: "edited"
       };
       
       setUploadQueue((prev) => [...prev, item]);
@@ -680,7 +696,9 @@ export default function AdminGalleryClient() {
         height: dimensions.height,
         variationFiles: [],
         variationPreviewUrls: [],
-        variations: []
+        variations: [],
+        category: "Scenery",
+        primary_type: "edited"
       });
     }
 
@@ -1003,6 +1021,8 @@ export default function AdminGalleryClient() {
             width: item.width,
             height: item.height,
             variations: [...item.variations, ...variationUrls],
+            category: item.category,
+            primary_type: item.primary_type,
             published: item.published,
             hash: item.hash
           }
@@ -1165,18 +1185,69 @@ export default function AdminGalleryClient() {
     }
   };
 
+  const handleStartEdit = (photo: Photo) => {
+    setEditingPhoto(photo);
+    setEditEditedFile(null);
+    setEditEditedPreview("");
+    setEditOriginalFile(null);
+    setEditOriginalPreview("");
+    setEditVariationFiles([]);
+    setEditVariationPreviews([]);
+  };
+
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPhoto) return;
     setSavingEdit(true);
 
     try {
+      let finalEdited = editingPhoto.edited;
+      let finalOriginal = editingPhoto.original;
+      const uploadedVariations: string[] = [];
+
+      // 1. Upload new Edited file if selected
+      if (editEditedFile) {
+        finalEdited = await uploadFileToStorage(editEditedFile, "edited", () => {});
+      }
+
+      // 2. Upload new Original file if selected
+      if (editOriginalFile) {
+        finalOriginal = await uploadFileToStorage(editOriginalFile, "original", () => {});
+      }
+
+      // 3. Upload new variation files if selected
+      if (editVariationFiles.length > 0) {
+        for (const file of editVariationFiles) {
+          const varUrl = await uploadFileToStorage(file, "variations", () => {});
+          uploadedVariations.push(varUrl);
+        }
+      }
+
+      // 4. Build final photo payload
+      const updatedPhoto = {
+        ...editingPhoto,
+        edited: finalEdited,
+        original: finalOriginal === finalEdited ? finalEdited : finalOriginal,
+        variations: [...(editingPhoto.variations || []), ...uploadedVariations]
+      };
+
+      // 5. Ensure at least one image remains
+      const hasEdited = !!updatedPhoto.edited;
+      const hasOriginal = !!updatedPhoto.original && updatedPhoto.original !== updatedPhoto.edited;
+      const hasVariations = updatedPhoto.variations && updatedPhoto.variations.length > 0;
+      
+      if (!hasEdited && !hasOriginal && !hasVariations) {
+        alert("Cannot save. A photo must have at least one image version left.");
+        setSavingEdit(false);
+        return;
+      }
+
       const res = await fetch("/api/gallery/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "save-photo",
-          photo: editingPhoto
+          photo: updatedPhoto
         })
       });
 
@@ -1191,6 +1262,7 @@ export default function AdminGalleryClient() {
         alert(`Error: ${data.error || "Failed to save edits."}`);
       }
     } catch (e) {
+      console.error(e);
       alert("Network error. Failed to save.");
     } finally {
       setSavingEdit(false);
@@ -1513,6 +1585,32 @@ export default function AdminGalleryClient() {
                           />
                         </div>
                         
+                        <div>
+                          <label className="text-xs font-semibold text-subtext1 mb-1 block">Category</label>
+                          <select
+                            value={item.category || "Scenery"}
+                            onChange={(e) => updateQueueItem(item.id, { category: e.target.value })}
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve cursor-pointer"
+                          >
+                            <option value="Scenery">Scenery</option>
+                            <option value="People">People</option>
+                            <option value="Buildings">Buildings</option>
+                            <option value="Street">Street</option>
+                            <option value="Others">Others</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-semibold text-subtext1 mb-1 block">Primary Version Label (for single image cards)</label>
+                          <select
+                            value={item.primary_type || "edited"}
+                            onChange={(e) => updateQueueItem(item.id, { primary_type: e.target.value })}
+                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve cursor-pointer"
+                          >
+                            <option value="edited">Edited</option>
+                            <option value="original">Original</option>
+                          </select>
+                        </div>
 
                         <div>
                           <label className="text-xs font-semibold text-subtext1 mb-1 block">Backstory</label>
@@ -2018,7 +2116,7 @@ export default function AdminGalleryClient() {
 
                       <div className="flex gap-2">
                         <button
-                          onClick={() => setEditingPhoto(photo)}
+                          onClick={() => handleStartEdit(photo)}
                           className="p-1.5 bg-surface0 border border-surface1 text-subtext0 hover:text-text rounded-lg transition-colors cursor-pointer"
                           title="Edit metadata"
                         >
@@ -2219,6 +2317,33 @@ export default function AdminGalleryClient() {
                         className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve resize-none"
                       />
                     </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-subtext1 mb-1 block">Category</label>
+                      <select
+                        value={editingPhoto.category || "Scenery"}
+                        onChange={(e) => setEditingPhoto({ ...editingPhoto, category: e.target.value })}
+                        className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve cursor-pointer"
+                      >
+                        <option value="Scenery">Scenery</option>
+                        <option value="People">People</option>
+                        <option value="Buildings">Buildings</option>
+                        <option value="Street">Street</option>
+                        <option value="Others">Others</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-semibold text-subtext1 mb-1 block">Primary Version Label (for single image cards)</label>
+                      <select
+                        value={editingPhoto.primary_type || "edited"}
+                        onChange={(e) => setEditingPhoto({ ...editingPhoto, primary_type: e.target.value })}
+                        className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve cursor-pointer"
+                      >
+                        <option value="edited">Edited</option>
+                        <option value="original">Original</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="space-y-4">
@@ -2327,6 +2452,218 @@ export default function AdminGalleryClient() {
                           ✨ Mark as Proud Shot (Featured)
                         </label>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Image version & comparison editor */}
+                <div className="col-span-full border-t border-surface0/60 pt-4 mt-4 space-y-4">
+                  <h4 className="text-sm font-bold text-mauve">Manage Image Versions</h4>
+                  <p className="text-[10px] text-subtext0 leading-normal mb-2">
+                    Upload new files to replace original/edited views, delete comparison steps, or add variations. There must always be at least one image version.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Edited Version */}
+                    <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center relative">
+                      <span className="text-[10px] uppercase font-bold text-mauve tracking-wider mb-2">Edited Version (Main)</span>
+                      
+                      {editingPhoto.edited || editEditedPreview ? (
+                        <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative group">
+                          <img src={editEditedPreview || editingPhoto.edited} alt="Edited preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hasOriginal = !!editingPhoto.original && editingPhoto.original !== editingPhoto.edited;
+                              const hasVariations = editingPhoto.variations && editingPhoto.variations.length > 0;
+                              const totalLeft = (editingPhoto.original && editingPhoto.original !== editingPhoto.edited ? 1 : 0) + (editingPhoto.variations?.length || 0) + editVariationFiles.length;
+                              
+                              if (totalLeft < 1) {
+                                alert("Cannot delete. At least one image version must remain.");
+                                return;
+                              }
+                              
+                              if (hasOriginal) {
+                                setEditingPhoto({
+                                  ...editingPhoto,
+                                  edited: editingPhoto.original
+                                });
+                              } else if (hasVariations) {
+                                setEditingPhoto({
+                                  ...editingPhoto,
+                                  edited: editingPhoto.variations![0],
+                                  variations: editingPhoto.variations!.slice(1)
+                                });
+                              } else {
+                                setEditingPhoto({ ...editingPhoto, edited: "" });
+                              }
+                              setEditEditedFile(null);
+                              setEditEditedPreview("");
+                            }}
+                            className="absolute -top-1.5 -right-1.5 bg-red text-crust rounded-full p-0.5 hover:scale-105 transition-transform cursor-pointer"
+                            title="Delete Edited version"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative border border-dashed border-surface2/60 rounded-lg w-24 h-18 flex items-center justify-center bg-black/20 hover:border-mauve transition-colors mb-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                setEditEditedFile(e.target.files[0]);
+                                setEditEditedPreview(URL.createObjectURL(e.target.files[0]));
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Plus size={16} className="text-overlay0" />
+                        </div>
+                      )}
+                      <label className="text-[9px] text-mauve hover:underline cursor-pointer">
+                        Replace Edited
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setEditEditedFile(e.target.files[0]);
+                              setEditEditedPreview(URL.createObjectURL(e.target.files[0]));
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Original Version */}
+                    <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center relative">
+                      <span className="text-[10px] uppercase font-bold text-subtext1 tracking-wider mb-2">Original Version</span>
+                      
+                      {editOriginalPreview || (editingPhoto.original && editingPhoto.original !== editingPhoto.edited) ? (
+                        <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative group">
+                          <img src={editOriginalPreview || editingPhoto.original} alt="Original preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPhoto({
+                                ...editingPhoto,
+                                original: editingPhoto.edited
+                              });
+                              setEditOriginalFile(null);
+                              setEditOriginalPreview("");
+                            }}
+                            className="absolute -top-1.5 -right-1.5 bg-red text-crust rounded-full p-0.5 hover:scale-105 transition-transform cursor-pointer"
+                            title="Remove Original distinction"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative border border-dashed border-surface2/60 rounded-lg w-24 h-18 flex items-center justify-center bg-black/20 hover:border-mauve transition-colors mb-2">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                setEditOriginalFile(e.target.files[0]);
+                                setEditOriginalPreview(URL.createObjectURL(e.target.files[0]));
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Plus size={16} className="text-overlay0" />
+                        </div>
+                      )}
+                      <label className="text-[9px] text-mauve hover:underline cursor-pointer">
+                        Set / Replace Original
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              setEditOriginalFile(e.target.files[0]);
+                              setEditOriginalPreview(URL.createObjectURL(e.target.files[0]));
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Variations */}
+                    <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                      <span className="text-[10px] uppercase font-bold text-subtext1 tracking-wider mb-2">Variations</span>
+                      
+                      <div className="flex flex-wrap gap-1.5 justify-center mb-2 font-mono">
+                        {editingPhoto.variations?.map((url, idx) => (
+                          <div key={`var-db-${idx}`} className="w-10 h-7 rounded overflow-hidden bg-black/40 border border-surface1 relative group">
+                            <img src={url} alt="Variation" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const left = (editingPhoto.edited ? 1 : 0) + (editingPhoto.original && editingPhoto.original !== editingPhoto.edited ? 1 : 0) + editingPhoto.variations!.length - 1 + editVariationFiles.length;
+                                if (left < 1) {
+                                  alert("Cannot delete. At least one image version must remain.");
+                                  return;
+                                }
+                                setEditingPhoto({
+                                  ...editingPhoto,
+                                  variations: editingPhoto.variations!.filter((_, i) => i !== idx)
+                                });
+                              }}
+                              className="absolute -top-1 -right-1 bg-red text-crust rounded-full p-0.2 scale-75 hover:scale-90 transition-transform cursor-pointer"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+
+                        {editVariationPreviews.map((previewUrl, idx) => (
+                          <div key={`var-local-${idx}`} className="w-10 h-7 rounded overflow-hidden bg-black/40 border border-surface1 relative group">
+                            <img src={previewUrl} alt="Variation preview" className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                URL.revokeObjectURL(previewUrl);
+                                const newFiles = editVariationFiles.filter((_, i) => i !== idx);
+                                const newPreviews = editVariationPreviews.filter((_, i) => i !== idx);
+                                const left = (editingPhoto.edited ? 1 : 0) + (editingPhoto.original && editingPhoto.original !== editingPhoto.edited ? 1 : 0) + (editingPhoto.variations?.length || 0) + newFiles.length;
+                                if (left < 1) {
+                                  alert("Cannot delete. At least one image version must remain.");
+                                  return;
+                                }
+                                setEditVariationFiles(newFiles);
+                                setEditVariationPreviews(newPreviews);
+                              }}
+                              className="absolute -top-1 -right-1 bg-red text-crust rounded-full p-0.2 scale-75 hover:scale-90 transition-transform cursor-pointer"
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+                        ))}
+
+                        <div className="relative border border-dashed border-surface2/60 rounded w-10 h-7 flex items-center justify-center bg-black/20 hover:border-mauve transition-colors cursor-pointer">
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                const files = Array.from(e.target.files);
+                                const previews = files.map(f => URL.createObjectURL(f));
+                                setEditVariationFiles([...editVariationFiles, ...files]);
+                                setEditVariationPreviews([...editVariationPreviews, ...previews]);
+                              }
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <Plus size={10} className="text-overlay0" />
+                        </div>
+                      </div>
+                      <span className="text-[8px] text-overlay0 font-sans">Add variations</span>
                     </div>
                   </div>
                 </div>

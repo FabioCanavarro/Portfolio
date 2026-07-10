@@ -22,6 +22,8 @@ type Photo = {
   width?: number;
   height?: number;
   variations?: string[];
+  category?: string;
+  primary_type?: string;
 };
 
 export default function PhotoCard({ 
@@ -112,9 +114,15 @@ export default function PhotoCard({
               ))}
             </div>
           ) : (
-            <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase border rounded-md bg-mauve/25 text-mauve border-mauve/45 shadow-[0_0_12px_rgba(202,158,230,0.15)] shrink-0">
-              Edited
-            </span>
+            photo.primary_type === "original" ? (
+              <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase border rounded-md bg-teal/25 text-teal border-teal/45 shadow-[0_0_12px_rgba(148,226,213,0.15)] shrink-0">
+                Original
+              </span>
+            ) : (
+              <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase border rounded-md bg-mauve/25 text-mauve border-mauve/45 shadow-[0_0_12px_rgba(202,158,230,0.15)] shrink-0">
+                Edited
+              </span>
+            )
           )}
         </div>
 
