@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 type Photo = {
   id: string;
@@ -20,11 +20,44 @@ type Photo = {
   published?: boolean;
   specific_location?: string;
   proud?: boolean;
+  variations?: string[];
 };
 
-export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: () => void }) {
-  const [isEdited, setIsEdited] = useState(true);
-  const currentImage = isEdited ? photo.edited : photo.original;
+export default function Lightbox({ 
+  photo, 
+  onClose,
+  onPrev,
+  onNext
+}: { 
+  photo: Photo; 
+  onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+}) {
+  const [activeVersionIndex, setActiveVersionIndex] = useState(0);
+
+  // Parse versions (Edited, Original, and Variations)
+  const versions = useMemo(() => {
+    const list = [
+      { name: "Edited", url: photo.edited }
+    ];
+    if (photo.original && photo.original !== photo.edited) {
+      list.push({ name: "Original", url: photo.original });
+    }
+    if (photo.variations && photo.variations.length > 0) {
+      photo.variations.forEach((url, idx) => {
+        list.push({ name: `V${idx + 1}`, url });
+      });
+    }
+    return list;
+  }, [photo]);
+
+  const currentImage = versions[activeVersionIndex]?.url || photo.edited;
+
+  // Reset active index to edited version when photo changes
+  useEffect(() => {
+    setActiveVersionIndex(0);
+  }, [photo]);
 
   // Prevent scrolling when lightbox is open
   useEffect(() => {
@@ -34,6 +67,17 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
     };
   }, []);
 
+  // Keyboard navigation listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && onPrev) onPrev();
+      if (e.key === "ArrowRight" && onNext) onNext();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose, onPrev, onNext]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -42,19 +86,75 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
       className="fixed inset-0 z-[100] flex items-center justify-center bg-base/90 backdrop-blur-xl p-4 sm:p-8"
       onClick={onClose}
     >
+      {/* Close button */}
       <button
         onClick={onClose}
-        className="absolute top-6 right-6 p-2 bg-surface0/50 hover:bg-surface1 rounded-full text-text transition-colors z-[110]"
+        className="absolute top-6 right-6 p-2 bg-surface0/50 hover:bg-surface1 rounded-full text-text transition-colors z-[120] cursor-pointer"
       >
         <X size={24} />
       </button>
 
+      {/* Left Arrow Button */}
+      {onPrev && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPrev();
+          }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-surface0/60 hover:bg-surface1 hover:scale-105 active:scale-95 text-text rounded-full transition-all z-[110] border border-surface1/60 shadow-lg shadow-black/20 group cursor-pointer hidden md:block"
+          title="Previous Image (Arrow Left)"
+        >
+          <ChevronLeft size={24} className="group-hover:-translate-x-0.5 transition-transform" />
+        </button>
+      )}
+
+      {/* Right Arrow Button */}
+      {onNext && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onNext();
+          }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-surface0/60 hover:bg-surface1 hover:scale-105 active:scale-95 text-text rounded-full transition-all z-[110] border border-surface1/60 shadow-lg shadow-black/20 group cursor-pointer hidden md:block"
+          title="Next Image (Arrow Right)"
+        >
+          <ChevronRight size={24} className="group-hover:translate-x-0.5 transition-transform" />
+        </button>
+      )}
+
+      {/* Main Container */}
       <div
-        className="relative flex flex-col lg:flex-row w-full max-w-6xl max-h-full rounded-2xl overflow-hidden bg-crust border border-surface0 shadow-2xl"
+        className="relative flex flex-col lg:flex-row w-full max-w-5xl max-h-[85vh] lg:max-h-[90vh] rounded-2xl overflow-hidden bg-crust border border-surface0 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Swipe Buttons (overlay) */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none md:hidden z-30">
+          {onPrev && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrev();
+              }}
+              className="pointer-events-auto p-2 bg-surface0/80 text-text rounded-full border border-surface1/55"
+            >
+              <ChevronLeft size={18} />
+            </button>
+          )}
+          {onNext && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onNext();
+              }}
+              className="pointer-events-auto p-2 bg-surface0/80 text-text rounded-full border border-surface1/55"
+            >
+              <ChevronRight size={18} />
+            </button>
+          )}
+        </div>
+
         {/* Image Display */}
-        <div className="relative flex-1 bg-black/50 overflow-hidden flex items-center justify-center max-h-[60vh] lg:max-h-none lg:w-2/3">
+        <div className="relative w-full lg:w-2/3 h-[40vh] sm:h-[48vh] lg:h-auto shrink-0 bg-black/50 overflow-hidden flex items-center justify-center">
           <motion.img
             key={currentImage}
             src={currentImage}
@@ -66,23 +166,32 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
           />
 
           {/* Toggle inside Lightbox */}
-          <div className="absolute top-4 right-4 z-20">
-            <button
-              onClick={() => setIsEdited(!isEdited)}
-              className="flex items-center gap-2 bg-surface0/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-surface1 hover:bg-surface1 transition-colors shadow-lg"
-            >
-              <span className={`text-sm font-medium ${!isEdited ? "text-text" : "text-subtext0"}`}>Original</span>
-              <div className="relative w-10 h-5 bg-crust rounded-full flex items-center px-0.5">
-                <motion.div
-                  layout
-                  className="w-4 h-4 bg-mauve rounded-full"
-                  animate={{ x: isEdited ? 20 : 0 }}
-                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
+          {versions.length > 1 ? (
+            <div className="absolute top-4 right-4 z-20">
+              <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md p-1 rounded-lg border border-surface1/60 shadow-lg">
+                {versions.map((ver, idx) => (
+                  <button
+                    key={ver.name}
+                    type="button"
+                    onClick={() => setActiveVersionIndex(idx)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all cursor-pointer ${
+                      activeVersionIndex === idx
+                        ? "bg-mauve text-crust shadow-md shadow-mauve/15"
+                        : "text-subtext1 hover:text-text hover:bg-surface0/40"
+                    }`}
+                  >
+                    {ver.name}
+                  </button>
+                ))}
               </div>
-              <span className={`text-sm font-medium ${isEdited ? "text-text" : "text-subtext0"}`}>Edited</span>
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div className="absolute top-4 right-4 z-20">
+              <span className="px-3 py-1.5 text-xs font-bold tracking-wider uppercase border rounded-lg bg-mauve/25 text-mauve border-mauve shadow-[0_0_15px_rgba(202,158,230,0.25)]">
+                Edited
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Backstory & details */}
@@ -109,10 +218,6 @@ export default function Lightbox({ photo, onClose }: { photo: Photo; onClose: ()
           </div>
           
           <div className="space-y-6 flex-1 text-sm md:text-[1rem] md:leading-6 text-subtext1">
-            <p className="leading-relaxed font-medium text-text bg-surface0/30 p-4 rounded-xl border border-surface0/50">
-              &quot;{photo.description}&quot;
-            </p>
-
             {photo.specific_location && (
               <div className="bg-surface0/20 p-3 rounded-xl border border-surface0/60 text-xs font-mono flex flex-col gap-1.5">
                 <span className="font-bold text-mauve uppercase tracking-widest text-[8px]">Specific Location Note</span>

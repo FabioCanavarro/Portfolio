@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
 
 type Photo = {
   id: string;
@@ -22,6 +21,7 @@ type Photo = {
   proud?: boolean;
   width?: number;
   height?: number;
+  variations?: string[];
 };
 
 export default function PhotoCard({ 
@@ -33,12 +33,33 @@ export default function PhotoCard({
   onClick: () => void;
   originalRatio?: boolean;
 }) {
-  const [isEdited, setIsEdited] = useState(true);
+  const [activeVersionIndex, setActiveVersionIndex] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const currentImage = isEdited ? photo.edited : photo.original;
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  // Parse versions (Edited, Original, and Variations)
+  const versions = useMemo(() => {
+    const list = [
+      { name: "Edited", url: photo.edited }
+    ];
+    if (photo.original && photo.original !== photo.edited) {
+      list.push({ name: "Original", url: photo.original });
+    }
+    if (photo.variations && photo.variations.length > 0) {
+      photo.variations.forEach((url, idx) => {
+        list.push({ name: `V${idx + 1}`, url });
+      });
+    }
+    return list;
+  }, [photo]);
+
+  const currentImage = versions[activeVersionIndex]?.url || photo.edited;
 
   useEffect(() => {
     setImageLoaded(false);
+    if (imgRef.current && imgRef.current.complete) {
+      setImageLoaded(true);
+    }
   }, [currentImage]);
 
   const hasResolution = photo.width && photo.height;
@@ -66,28 +87,35 @@ export default function PhotoCard({
         
         {/* Top Section - Title and Toggle */}
         <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent">
-          <h3 className="text-lg font-bold text-white drop-shadow-md pr-2">
+          <h3 className="text-lg font-bold text-white drop-shadow-md pr-2 truncate">
             {photo.title}
           </h3>
           
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsEdited(!isEdited);
-            }}
-            className="flex items-center gap-1 bg-surface0/80 backdrop-blur-sm px-2 py-1 rounded-md border border-surface1 hover:bg-surface1 transition-colors z-30"
-          >
-            <span className={`text-xs font-medium ${!isEdited ? "text-text" : "text-subtext0"}`}>Orig</span>
-            <div className="relative w-8 h-4 bg-crust rounded-full flex items-center px-0.5">
-              <motion.div
-                layout
-                className="w-3 h-3 bg-mauve rounded-full"
-                animate={{ x: isEdited ? 16 : 0 }}
-                transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              />
+          {versions.length > 1 ? (
+            <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm p-0.5 rounded-lg border border-surface1/60 z-30 shrink-0">
+              {versions.map((ver, idx) => (
+                <button
+                  key={ver.name}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveVersionIndex(idx);
+                  }}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-all cursor-pointer ${
+                    activeVersionIndex === idx
+                      ? "bg-mauve text-crust shadow-md shadow-mauve/15"
+                      : "text-subtext1 hover:text-text hover:bg-surface0/40"
+                  }`}
+                >
+                  {ver.name}
+                </button>
+              ))}
             </div>
-            <span className={`text-xs font-medium ${isEdited ? "text-text" : "text-subtext0"}`}>Edit</span>
-          </button>
+          ) : (
+            <span className="px-2.5 py-1 text-[10px] font-bold tracking-wider uppercase border rounded-md bg-mauve/25 text-mauve border-mauve/45 shadow-[0_0_12px_rgba(202,158,230,0.15)] shrink-0">
+              Edited
+            </span>
+          )}
         </div>
 
         {/* Image Container */}
@@ -96,12 +124,11 @@ export default function PhotoCard({
           style={containerStyle}
         >
           {!imageLoaded && (
-            <div className="absolute inset-0 bg-surface0/60 animate-pulse flex items-center justify-center z-10">
-              <Sparkles className="text-mauve/25 animate-pulse" size={24} />
-            </div>
+            <div className="absolute inset-0 bg-surface0/60 animate-pulse flex items-center justify-center z-10" />
           )}
           
           <motion.img
+            ref={imgRef}
             key={currentImage}
             src={currentImage}
             alt={photo.title}
@@ -113,11 +140,8 @@ export default function PhotoCard({
           />
         </div>
 
-        {/* Bottom Section - Desc and Tags */}
+        {/* Bottom Section - Tags */}
         <div className="p-5 flex flex-col flex-1 bg-gradient-to-t from-crust via-crust/95 to-crust/90">
-          <p className="text-subtext0 text-sm mb-4 line-clamp-2">
-            {photo.description}
-          </p>
           
           <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap gap-2">
@@ -135,20 +159,25 @@ export default function PhotoCard({
                 </span>
               )}
             </div>
-            <div className="flex flex-col items-end text-right">
+            <div className="flex flex-col items-end text-right font-sans">
               {photo.date && (
                 <span className="text-xs text-subtext0 font-mono">
                   {new Date(photo.date).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                 </span>
               )}
-              {(photo.city || photo.country || photo.specific_location) && (
-                <span className="text-[10px] text-mauve/80 font-mono mt-0.5 truncate max-w-[120px]" title={[photo.specific_location, photo.city, photo.province, photo.country].filter(Boolean).join(", ")}>
-                  📍 {photo.specific_location || [photo.city, photo.country].filter(Boolean).join(", ")}
+              {photo.city && photo.country ? (
+                <span className="text-[10px] text-mauve font-semibold mt-0.5">
+                  {photo.city}, {photo.country}
                 </span>
-              )}
+              ) : photo.country ? (
+                <span className="text-[10px] text-mauve font-semibold mt-0.5">
+                  {photo.country}
+                </span>
+              ) : null}
             </div>
           </div>
-          </div>
+        </div>
+
         </div>
       </div>
     </motion.div>

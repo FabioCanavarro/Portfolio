@@ -27,6 +27,7 @@ type Photo = {
   proud?: boolean;
   width?: number;
   height?: number;
+  variations?: string[];
 };
 
 interface UploadItem {
@@ -47,6 +48,9 @@ interface UploadItem {
   proud: boolean;
   width: number;
   height: number;
+  variationFiles: File[];
+  variationPreviewUrls: string[];
+  variations: string[];
   
   // File details
   editedFile: File;
@@ -499,7 +503,10 @@ export default function AdminGalleryClient() {
             specific_location: "",
             proud: false,
             width: dimensions.width,
-            height: dimensions.height
+            height: dimensions.height,
+            variationFiles: [],
+            variationPreviewUrls: [],
+            variations: []
           };
           
           validItems.push(item);
@@ -613,6 +620,9 @@ export default function AdminGalleryClient() {
         proud: false,
         width: dimensions.width,
         height: dimensions.height,
+        variationFiles: [],
+        variationPreviewUrls: [],
+        variations: []
       };
       
       setUploadQueue((prev) => [...prev, item]);
@@ -668,6 +678,9 @@ export default function AdminGalleryClient() {
         proud: false,
         width: dimensions.width,
         height: dimensions.height,
+        variationFiles: [],
+        variationPreviewUrls: [],
+        variations: []
       });
     }
 
@@ -700,6 +713,42 @@ export default function AdminGalleryClient() {
         return item;
       })
     );
+  };
+
+  const handleMergeDrop = async (e: React.DragEvent, targetId: string, slot: "original" | "edited" | "variations") => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData("text/plain");
+    if (!sourceId || sourceId === targetId) return;
+
+    const sourceItem = uploadQueue.find(q => q.id === sourceId);
+    const targetItem = uploadQueue.find(q => q.id === targetId);
+    if (!sourceItem || !targetItem) return;
+
+    console.log(`Merging queue item ${sourceId} into target item ${targetId} as slot ${slot}`);
+
+    if (slot === "original") {
+      // Set target original file to source edited file
+      updateQueueItem(targetId, {
+        originalFile: sourceItem.editedFile,
+        originalPreviewUrl: sourceItem.previewUrl, // reuse URL
+      });
+    } else if (slot === "edited") {
+      // Set target edited file to source edited file
+      updateQueueItem(targetId, {
+        editedFile: sourceItem.editedFile,
+        previewUrl: sourceItem.previewUrl, // reuse URL
+        fileName: sourceItem.fileName,
+      });
+    } else if (slot === "variations") {
+      // Add source edited file to target variationFiles
+      updateQueueItem(targetId, {
+        variationFiles: [...targetItem.variationFiles, sourceItem.editedFile],
+        variationPreviewUrls: [...targetItem.variationPreviewUrls, sourceItem.previewUrl], // reuse URL
+      });
+    }
+
+    // Remove source item from queue without revoking previewUrl (since target is now using it!)
+    setUploadQueue((prev) => prev.filter(q => q.id !== sourceId));
   };
 
   // AI Settings functions
@@ -822,7 +871,7 @@ export default function AdminGalleryClient() {
   // Supabase Storage upload
   const uploadFileToStorage = async (
     file: File, 
-    folder: "original" | "edited", 
+    folder: "original" | "edited" | "variations", 
     onProgress: (progress: number) => void
   ): Promise<string> => {
     const signRes = await fetch("/api/gallery/upload", {
@@ -914,6 +963,19 @@ export default function AdminGalleryClient() {
         originalUrl = editedUrl;
       }
 
+      // 2.5 Upload Variations
+      const variationUrls: string[] = [];
+      if (item.variationFiles && item.variationFiles.length > 0) {
+        for (const varFile of item.variationFiles) {
+          const varUrl = await uploadFileToStorage(
+            varFile,
+            "variations",
+            () => {}
+          );
+          variationUrls.push(varUrl);
+        }
+      }
+
       setUploadQueue((prev) =>
         prev.map((q) => (q.id === itemId ? { ...q, uploadProgress: 95 } : q))
       );
@@ -940,6 +1002,7 @@ export default function AdminGalleryClient() {
             proud: item.proud,
             width: item.width,
             height: item.height,
+            variations: [...item.variations, ...variationUrls],
             published: item.published,
             hash: item.hash
           }
@@ -1381,8 +1444,16 @@ export default function AdminGalleryClient() {
                       </div>
                     )}
 
-                    {/* Thumbnail preview details */}
-                    <div className="w-full md:w-56 shrink-0 flex flex-col gap-3">
+                    {/* Thumbnail preview details (Draggable) */}
+                    <div 
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/plain", item.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="w-full md:w-56 shrink-0 flex flex-col gap-3 cursor-grab active:cursor-grabbing group/drag relative"
+                      title="Drag this thumbnail to another photo's slot (Original, Edited, Variations) to merge them!"
+                    >
                       <div className="w-full rounded-xl overflow-hidden bg-surface0 border border-surface1 relative flex items-center justify-center min-h-[150px] max-h-[220px]">
                         <img src={item.previewUrl} alt={item.fileName} className="w-full h-auto max-h-[220px] object-contain" />
                         
@@ -1442,16 +1513,6 @@ export default function AdminGalleryClient() {
                           />
                         </div>
                         
-                        <div>
-                          <label className="text-xs font-semibold text-subtext1 mb-1 block">Subheading / Description</label>
-                          <input
-                            type="text"
-                            value={item.description}
-                            onChange={(e) => updateQueueItem(item.id, { description: e.target.value })}
-                            className="w-full bg-surface0 border border-surface1/80 rounded-lg px-3 py-2 text-sm text-text placeholder:text-overlay0 outline-none focus:border-mauve"
-                            placeholder="Captured in Paris, France..."
-                          />
-                        </div>
 
                         <div>
                           <label className="text-xs font-semibold text-subtext1 mb-1 block">Backstory</label>
@@ -1678,11 +1739,18 @@ export default function AdminGalleryClient() {
 
                       {/* Comparison upload & slot swapping */}
                       <div className="col-span-full border-t border-surface0/60 pt-4 mt-2">
-                        <label className="text-xs font-semibold text-subtext1 mb-2 block">Comparison Images</label>
+                        <label className="text-xs font-semibold text-subtext1 mb-2 block">Comparison Images (Drag files here to merge them)</label>
                         <div className="grid grid-cols-1 sm:grid-cols-3 items-center gap-4">
                           
                           {/* Edited image preview */}
-                          <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center">
+                          <div 
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => handleMergeDrop(e, item.id, "edited")}
+                            className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center transition-colors hover:bg-surface0/30"
+                          >
                             <span className="text-[10px] uppercase font-bold text-mauve tracking-wider mb-2">Edited Version (Main)</span>
                             <div className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 mb-2 relative">
                               <img src={item.previewUrl} alt="Edited preview" className="w-full h-full object-cover" />
@@ -1709,7 +1777,14 @@ export default function AdminGalleryClient() {
                           </div>
 
                           {/* Original image slot */}
-                          <div className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center relative">
+                          <div 
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => handleMergeDrop(e, item.id, "original")}
+                            className="bg-surface0/20 border border-surface1/40 rounded-xl p-3 flex flex-col items-center justify-center text-center relative transition-colors hover:bg-surface0/30"
+                          >
                             <span className="text-[10px] uppercase font-bold text-subtext1 tracking-wider mb-2">Original Version (Comparison)</span>
                             
                             {item.originalFile ? (
@@ -1753,6 +1828,81 @@ export default function AdminGalleryClient() {
                             )}
                           </div>
 
+                        </div>
+                      </div>
+
+                      {/* Variations Section */}
+                      <div className="col-span-full border-t border-surface0/60 pt-4 mt-2">
+                        <label className="text-xs font-semibold text-subtext1 mb-2 block">Variations (Drag items here to make them variations)</label>
+                        <div className="flex flex-wrap items-center gap-4">
+                          {/* Existing Variations from database */}
+                          {item.variations.map((url, idx) => (
+                            <div key={`var-db-${idx}`} className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 relative group">
+                              <img src={url} alt="Variation" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateQueueItem(item.id, {
+                                    variations: item.variations.filter((_, i) => i !== idx)
+                                  });
+                                }}
+                                className="absolute -top-1.5 -right-1.5 bg-red text-crust rounded-full p-0.5 hover:scale-105 transition-transform cursor-pointer"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Local Pending Variations */}
+                          {item.variationPreviewUrls.map((previewUrl, idx) => (
+                            <div key={`var-local-${idx}`} className="w-24 h-18 rounded overflow-hidden bg-black/40 border border-surface1 relative group">
+                              <img src={previewUrl} alt="Variation preview" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  URL.revokeObjectURL(previewUrl);
+                                  const newFiles = item.variationFiles.filter((_, i) => i !== idx);
+                                  const newPreviews = item.variationPreviewUrls.filter((_, i) => i !== idx);
+                                  updateQueueItem(item.id, {
+                                    variationFiles: newFiles,
+                                    variationPreviewUrls: newPreviews
+                                  });
+                                }}
+                                className="absolute -top-1.5 -right-1.5 bg-red text-crust rounded-full p-0.5 hover:scale-105 transition-transform cursor-pointer"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+
+                          {/* Add or Drop variation slot */}
+                          <div 
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                            }}
+                            onDrop={(e) => handleMergeDrop(e, item.id, "variations")}
+                            className="relative border border-dashed border-surface2/60 rounded-xl w-24 h-18 flex flex-col items-center justify-center bg-black/20 hover:border-mauve hover:bg-black/35 transition-all text-center p-2 cursor-pointer group"
+                          >
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  const files = Array.from(e.target.files);
+                                  const previews = files.map(f => URL.createObjectURL(f));
+                                  updateQueueItem(item.id, {
+                                    variationFiles: [...item.variationFiles, ...files],
+                                    variationPreviewUrls: [...item.variationPreviewUrls, ...previews]
+                                  });
+                                }
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <Plus size={16} className="text-overlay0 group-hover:text-mauve transition-colors" />
+                            <span className="text-[8px] text-overlay0 mt-1 select-none leading-none group-hover:text-mauve transition-colors">Add / Drop Var</span>
+                          </div>
                         </div>
                       </div>
 
@@ -1838,7 +1988,7 @@ export default function AdminGalleryClient() {
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
                       <h4 className="font-bold text-lg truncate mb-1">{photo.title}</h4>
-                      <p className="text-xs text-subtext0 line-clamp-2 mb-3">{photo.description || "No description"}</p>
+
                       
                       <div className="flex flex-wrap gap-2 text-[10px] font-mono text-subtext1 mb-4">
                         {photo.date && (
@@ -2057,16 +2207,6 @@ export default function AdminGalleryClient() {
                         onChange={(e) => setEditingPhoto({ ...editingPhoto, title: e.target.value })}
                         className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
                         required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-semibold text-subtext1 mb-1 block">Subheading / Description</label>
-                      <input
-                        type="text"
-                        value={editingPhoto.description}
-                        onChange={(e) => setEditingPhoto({ ...editingPhoto, description: e.target.value })}
-                        className="w-full bg-surface0 border border-surface1 rounded-lg px-3 py-2 text-sm text-text outline-none focus:border-mauve"
                       />
                     </div>
 

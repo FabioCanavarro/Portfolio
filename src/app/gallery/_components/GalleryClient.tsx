@@ -22,6 +22,7 @@ type Photo = {
   published?: boolean;
   specific_location?: string;
   proud?: boolean;
+  variations?: string[];
 };
 
 type Props = {
@@ -107,6 +108,7 @@ export default function GalleryClient({ photos }: Props) {
   const [selectedTag, setSelectedTag] = useState("all");
   const [sortBy, setSortBy] = useState<SortOption>("date-desc");
   const [originalRatio, setOriginalRatio] = useState(true);
+
 
   const proudPhotos = useMemo(() => {
     // Only display active published photos in the proud section, limit to 10
@@ -195,6 +197,30 @@ export default function GalleryClient({ photos }: Props) {
 
     return result;
   }, [photos, searchQuery, selectedTag, sortBy]);
+
+  // Lightbox active navigation lists
+  const activePhotosList = useMemo(() => {
+    if (!selectedPhoto) return [];
+    const inProcessed = processedPhotos.findIndex(p => p.id === selectedPhoto.id);
+    if (inProcessed !== -1) {
+      return processedPhotos;
+    }
+    return proudPhotos;
+  }, [selectedPhoto, processedPhotos, proudPhotos]);
+
+  const handlePrevPhoto = () => {
+    if (!selectedPhoto || activePhotosList.length <= 1) return;
+    const currentIndex = activePhotosList.findIndex(p => p.id === selectedPhoto.id);
+    const prevIndex = (currentIndex - 1 + activePhotosList.length) % activePhotosList.length;
+    setSelectedPhoto(activePhotosList[prevIndex]);
+  };
+
+  const handleNextPhoto = () => {
+    if (!selectedPhoto || activePhotosList.length <= 1) return;
+    const currentIndex = activePhotosList.findIndex(p => p.id === selectedPhoto.id);
+    const nextIndex = (currentIndex + 1) % activePhotosList.length;
+    setSelectedPhoto(activePhotosList[nextIndex]);
+  };
 
   // Group photos dynamically based on sort criteria
   const groupedPhotos = useMemo(() => {
@@ -369,6 +395,8 @@ export default function GalleryClient({ photos }: Props) {
           <Lightbox
             photo={selectedPhoto}
             onClose={() => setSelectedPhoto(null)}
+            onPrev={activePhotosList.length > 1 ? handlePrevPhoto : undefined}
+            onNext={activePhotosList.length > 1 ? handleNextPhoto : undefined}
           />
         )}
       </AnimatePresence>
