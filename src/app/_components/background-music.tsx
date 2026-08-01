@@ -9,6 +9,7 @@ type TrackInfo = {
   artist: string;
   videoId: string;
   image?: string;
+  isLive?: boolean;
 };
 
 export default function BackgroundMusic() {
@@ -29,12 +30,13 @@ export default function BackgroundMusic() {
       const res = await fetch("/api/music/now-playing");
       if (res.ok) {
         const data = await res.json();
-        if (data.playing && data.videoId) {
+        if (data.videoId) {
           setNowPlaying({
             title: data.title,
             artist: data.artist,
             videoId: data.videoId,
-            image: data.image
+            image: data.image,
+            isLive: data.playing ?? false,
           });
         } else {
           setNowPlaying(null);
@@ -277,7 +279,7 @@ export default function BackgroundMusic() {
           {/* Controls title text */}
           <div className="flex flex-col items-start leading-none max-w-[120px] md:max-w-[180px] overflow-hidden">
             <span className="text-[7px] uppercase font-bold tracking-widest text-mauve mb-0.5">
-              {nowPlaying ? "Now Playing" : "Playlist"}
+              {nowPlaying ? (nowPlaying.isLive ? "Now Playing" : "Most Recent") : "Playlist"}
             </span>
             <span className="text-[10px] font-bold text-subtext0 truncate w-full group-hover:text-text transition-colors">
               {nowPlaying ? `${nowPlaying.title} - ${nowPlaying.artist}` : "Background Jazz"}

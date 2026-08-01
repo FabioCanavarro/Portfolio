@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSortedPostsData } from "@/lib/posts";
-import { BookText } from "lucide-react";
+import { BookText, ArrowLeft, AlertCircle } from "lucide-react";
 
 const tagColorMap: { [key: string]: string } = {
   rust: "bg-peach/20 text-peach border-peach/30",
@@ -20,10 +20,38 @@ export default function Blog() {
 
   return (
     <section>
-      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-mauve flex items-center">
-        <BookText className="w-8 h-8 mr-4" />
-        Writings
-      </h1>
+      {/* Back Link */}
+      <Link
+        href="/"
+        className="inline-flex items-center text-xs font-semibold text-subtext0 hover:text-mauve transition-colors mb-6 group"
+      >
+        <ArrowLeft className="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-1" />
+        Back to Overview
+      </Link>
+
+      {/* Header Section aligned with /music, /reading & /gallery */}
+      <div className="mb-12 border-b border-surface0/60 pb-8">
+        <h1 className="text-4xl font-bold text-mauve mb-4 flex items-center">
+          <BookText className="w-8 h-8 mr-3" /> Blog & Writings
+        </h1>
+        <p className="text-subtext0 text-lg max-w-2xl">
+          A collection of technical writeups, project logs, and personal thoughts on software engineering.
+        </p>
+
+        {/* Obsidian Admonition Callout */}
+        <div className="mt-6 p-4 rounded-xl bg-crust/70 border border-surface0/80 border-l-4 border-l-mauve shadow-lg backdrop-blur-md flex items-start gap-3 max-w-xl text-left">
+          <AlertCircle className="w-4 h-4 text-mauve shrink-0 mt-0.5" />
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-mauve block mb-0.5">
+              Notice / Blog Feed
+            </span>
+            <p className="text-xs text-subtext0 leading-relaxed font-medium">
+              Technical writeups and project deep-dives. Thoughts expressed here are personal.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ul className="space-y-8">
         {allPostsData.map(({ slug, title, date, description, tags }) => (
           <li key={slug}>

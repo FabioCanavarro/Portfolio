@@ -48,10 +48,10 @@ const projects = [
     link: "https://github.com/FabioCanavarro/FerrisLog-ServerClient",
   },
   {
-    title: "Custom Mechanical Keyboard",
+    title: "Mochadeck",
     description:
-      "Full hardware design files for a custom mechanical keyboard designed for the Hack Club Keeb event. Includes KiCad schematics, BOMs, and 3D .step files.",
-    tags: ["Hardware Design", "PCB Design", "KiCad", "3D Modeling", "Mechanical Keyboard"],
+      "A fully custom keyboard designed from hardware to firmware for the Hack Club Keeb event. Includes KiCad schematics, PCB layout, BOMs, 3D .step files, and custom firmware.",
+    tags: ["Hardware Design", "PCB Design", "Firmware", "KiCad", "Mechanical Keyboard"],
     icon: <Keyboard className="w-6 h-6 text-yellow" />,
     link: "https://github.com/FabioCanavarro/custom-keyboard",
   },

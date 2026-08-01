@@ -78,6 +78,12 @@ const Navbar = () => {
                   Music
                 </Link>
                 <Link
+                  href="/reading"
+                  className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
+                >
+                  Reading
+                </Link>
+                <Link
                   href="/blog"
                   className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors bg-mauve/10 border border-mauve/20"
                 >
@@ -148,6 +154,13 @@ const Navbar = () => {
                   className="text-subtext1 hover:text-text bg-mauve/10 block px-3 py-2 rounded-md font-medium transition-colors mt-1"
                 >
                   Music
+                </Link>
+                <Link
+                  href="/reading"
+                  onClick={() => setIsOpen(false)}
+                  className="text-subtext1 hover:text-text bg-mauve/10 block px-3 py-2 rounded-md font-medium transition-colors mt-1"
+                >
+                  Reading
                 </Link>
                 <Link
                   href="/blog"

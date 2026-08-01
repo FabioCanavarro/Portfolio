@@ -9,12 +9,12 @@ export async function GET() {
   try {
     const tracks = await getRecentTracks(1);
     
-    if (tracks && tracks.length > 0 && tracks[0].nowPlaying) {
+    if (tracks && tracks.length > 0) {
       const track = tracks[0];
       const videoId = await getYTMusicVideoId(`${track.artist} - ${track.name}`);
       
       return NextResponse.json({
-        playing: true,
+        playing: !!track.nowPlaying,
         title: track.name,
         artist: track.artist,
         videoId: videoId,

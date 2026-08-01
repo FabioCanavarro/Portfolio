@@ -1,6 +1,7 @@
 import { getRecentTracks, getTopAlbums, getTopArtists, getTopTags } from "@/lib/lastfm";
-import { Disc, Music2, Play, Activity, Mic2, Tag, Calendar } from "lucide-react";
+import { Disc, Music2, Play, Activity, Mic2, Tag, Calendar, AlertCircle, ArrowLeft } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export const metadata = {
   title: "Music | Fabio Canavarro",
@@ -21,7 +22,16 @@ export default async function MusicPage() {
 
   return (
     <div className="min-h-screen pt-24 pb-12 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
-      <div className="mb-16 text-center md:text-left flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
+      {/* Back Link */}
+      <Link
+        href="/"
+        className="inline-flex items-center text-xs font-semibold text-subtext0 hover:text-mauve transition-colors mb-6 group"
+      >
+        <ArrowLeft className="w-4 h-4 mr-1.5 transition-transform group-hover:-translate-x-1" />
+        Back to Overview
+      </Link>
+
+      <div className="mb-12 border-b border-surface0/60 pb-8 text-center md:text-left flex flex-col md:flex-row items-center md:items-end justify-between gap-6">
         <div>
           <h1 className="text-4xl font-bold text-mauve mb-4 flex items-center justify-center md:justify-start">
             <Music2 className="w-8 h-8 mr-3" /> Music Activity
@@ -29,6 +39,19 @@ export default async function MusicPage() {
           <p className="text-subtext0 text-lg">
             A live feed of my listening habits sourced directly from Last.fm.
           </p>
+
+          {/* Obsidian Admonition Callout */}
+          <div className="mt-6 p-4 rounded-xl bg-crust/70 border border-surface0/80 border-l-4 border-l-mauve shadow-lg backdrop-blur-md flex items-start gap-3 max-w-xl text-left">
+            <AlertCircle className="w-4 h-4 text-mauve shrink-0 mt-0.5" />
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-mauve block mb-0.5">
+                Notice / Audio Feed
+              </span>
+              <p className="text-xs text-subtext0 leading-relaxed font-medium">
+                Live listening feed powered by Last.fm and YouTube. Songs and stats sync automatically!
+              </p>
+            </div>
+          </div>
         </div>
 
         {nowPlaying && (
