@@ -34,6 +34,29 @@ export default function Portfolio({ posts }: PortfolioProps) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  useEffect(() => {
+    if (!mounted) return;
+
+    const handleHashScroll = () => {
+      const hash = window.location.hash;
+      if (hash) {
+        const id = hash.replace("#", "");
+        const element = document.getElementById(id);
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    };
+
+    const timer = setTimeout(handleHashScroll, 100);
+    window.addEventListener("hashchange", handleHashScroll);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("hashchange", handleHashScroll);
+    };
+  }, [mounted]);
+
   if (!mounted) return null;
 
   const colors = {

@@ -173,3 +173,149 @@ export async function getTopTags(limit: number = 6): Promise<LastFmTag[]> {
     return [];
   }
 }
+
+export type LastFmUserInfo = {
+  username: string;
+  realname: string;
+  playcount: number;
+  estimatedMinutes: number;
+  estimatedHours: number;
+  registeredDate: string;
+  url: string;
+  image: string;
+};
+
+export type LastFmTopTrack = {
+  name: string;
+  artist: string;
+  playcount: string;
+  url: string;
+  image: string;
+};
+
+export type LastFmLovedTrack = {
+  name: string;
+  artist: string;
+  url: string;
+  image: string;
+  dateLoved: string;
+};
+
+export async function getUserInfo(): Promise<LastFmUserInfo | null> {
+  console.log("Last.fm Debug (User Info) - Env Vars:", { 
+    hasApiKey: !!API_KEY, 
+    username: USERNAME 
+  });
+
+  if (!API_KEY || !USERNAME) return null;
+
+  const url = `${API_BASE}?method=user.getinfo&user=${USERNAME}&api_key=${API_KEY}&format=json`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    const data = await res.json();
+
+    if (!data.user) return null;
+
+    const u = data.user;
+    const playcount = parseInt(u.playcount || "0", 10);
+    const estimatedMinutes = Math.round(playcount * 3.5);
+    const estimatedHours = Math.round(estimatedMinutes / 60);
+
+    let registeredDate = "";
+    if (u.registered?.unixtime) {
+      const d = new Date(parseInt(u.registered.unixtime, 10) * 1000);
+      registeredDate = d.toLocaleDateString("en-US", { year: "numeric", month: "short" });
+    }
+
+    return {
+      username: u.name,
+      realname: u.realname || u.name,
+      playcount,
+      estimatedMinutes,
+      estimatedHours,
+      registeredDate,
+      url: u.url,
+      image: u.image?.[3]?.["#text"] || u.image?.[2]?.["#text"] || "",
+    };
+  } catch (error) {
+    console.error("Error fetching Last.fm user info:", error);
+    return null;
+  }
+}
+
+export async function getTopTracks(limit: number = 6, period: string = "overall"): Promise<LastFmTopTrack[]> {
+  if (!API_KEY || !USERNAME) return [];
+
+  const url = `${API_BASE}?method=user.gettoptracks&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}&period=${period}`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    const data = await res.json();
+
+    if (!data.toptracks || !data.toptracks.track) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawTracks = Array.isArray(data.toptracks.track)
+      ? data.toptracks.track
+      : [data.toptracks.track];
+
+    const tracks = rawTracks.map((track: Record<string, any>) => ({
+      name: track.name,
+      artist: typeof track.artist === "object" ? track.artist.name : track.artist,
+      playcount: track.playcount,
+      url: track.url,
+      image: track.image?.[3]?.["#text"] || track.image?.[2]?.["#text"] || "",
+    }));
+
+    const enrichedTracks = await Promise.all(
+      tracks.map(async (track: LastFmTopTrack) => {
+        const ytImage = await getYTMusicImage(`${track.artist} ${track.name}`, "SONG");
+        return { ...track, image: ytImage || track.image };
+      })
+    );
+
+    return enrichedTracks;
+  } catch (error) {
+    console.error("Error fetching Last.fm top tracks:", error);
+    return [];
+  }
+}
+
+export async function getLovedTracks(limit: number = 6): Promise<LastFmLovedTrack[]> {
+  if (!API_KEY || !USERNAME) return [];
+
+  const url = `${API_BASE}?method=user.getlovedtracks&user=${USERNAME}&api_key=${API_KEY}&format=json&limit=${limit}`;
+
+  try {
+    const res = await fetch(url, { next: { revalidate: 3600 } });
+    const data = await res.json();
+
+    if (!data.lovedtracks || !data.lovedtracks.track) return [];
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawTracks = Array.isArray(data.lovedtracks.track)
+      ? data.lovedtracks.track
+      : [data.lovedtracks.track];
+
+    const tracks = rawTracks.map((track: Record<string, any>) => ({
+      name: track.name,
+      artist: typeof track.artist === "object" ? track.artist.name : track.artist,
+      url: track.url,
+      image: track.image?.[3]?.["#text"] || track.image?.[2]?.["#text"] || "",
+      dateLoved: track.date?.["#text"] || "",
+    }));
+
+    const enrichedTracks = await Promise.all(
+      tracks.map(async (track: LastFmLovedTrack) => {
+        const ytImage = await getYTMusicImage(`${track.artist} ${track.name}`, "SONG");
+        return { ...track, image: ytImage || track.image };
+      })
+    );
+
+    return enrichedTracks;
+  } catch (error) {
+    console.error("Error fetching Last.fm loved tracks:", error);
+    return [];
+  }
+}

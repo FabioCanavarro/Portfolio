@@ -17,6 +17,10 @@ async function getYTMusicClient() {
   return ytmusicPromise;
 }
 
+const ARTIST_SEARCH_OVERRIDES: Record<string, string> = {
+  sook: "sooktube piano",
+};
+
 export async function getYTMusicImage(
   query: string,
   type: "ARTIST" | "ALBUM" | "SONG",
@@ -26,9 +30,14 @@ export async function getYTMusicImage(
     return ytImageCache.get(cacheKey) || null;
   }
 
+  let searchQuery = query;
+  if (type === "ARTIST" && ARTIST_SEARCH_OVERRIDES[query.toLowerCase()]) {
+    searchQuery = ARTIST_SEARCH_OVERRIDES[query.toLowerCase()];
+  }
+
   try {
     const client = await getYTMusicClient();
-    const results = await client.search(query);
+    const results = await client.search(searchQuery);
 
     if (results && results.length > 0) {
       // Filter by result type (SONG → "SONG", ARTIST → "ARTIST", ALBUM → "ALBUM")

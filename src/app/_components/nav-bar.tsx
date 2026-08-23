@@ -9,7 +9,6 @@ import { usePathname } from "next/navigation";
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
-  const isBlogPage = pathname.startsWith("/blog");
 
   const navLinks = [
     { name: "About", href: "/#about" },
@@ -20,6 +19,21 @@ const Navbar = () => {
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
+  };
+
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (pathname === "/" && href.startsWith("/#")) {
+      const id = href.replace("/#", "");
+      const element = document.getElementById(id);
+      if (element) {
+        e.preventDefault();
+        window.history.pushState(null, "", href);
+        element.scrollIntoView({ behavior: "smooth" });
+      }
+    }
   };
 
   return (
@@ -43,27 +57,16 @@ const Navbar = () => {
           {/* Desktop Menu */}
           <div className="hidden md:block">
             <div className="ml-10 flex items-baseline space-x-4">
-              {!isBlogPage &&
-                navLinks.map((link) => (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors"
-                  >
-                    {link.name}
-                  </Link>
-                ))
-              }
-              {
-                isBlogPage && (
-                  <Link
-                    href="/"
-                    className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors"
-                  >
-                    Home
-                  </Link>
-                )
-              }
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  onClick={(e) => handleNavClick(e, link.href)}
+                  className="text-subtext1 hover:text-text px-3 py-2 rounded-md font-medium transition-colors"
+                >
+                  {link.name}
+                </Link>
+              ))}
               <div className="flex gap-2">
                 <Link
                   href="/gallery"
@@ -117,28 +120,19 @@ const Navbar = () => {
             exit="exit"
           >
             <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              {!isBlogPage &&
-                navLinks.map((link) => (
-                  <motion.a
-                    key={link.name}
-                    href={link.href}
-                    onClick={() => setIsOpen(false)}
-                    className="text-subtext1 hover:text-text hover:bg-surface0 block px-3 py-2 rounded-md font-medium transition-colors"
-                  >
-                    {link.name}
-                  </motion.a>
-                ))
-              }
-              {isBlogPage &&
-                <motion.a
-                  key="home"
-                  href="/"
-                  onClick={() => setIsOpen(false)}
+              {navLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  onClick={(e) => {
+                    setIsOpen(false);
+                    handleNavClick(e, link.href);
+                  }}
                   className="text-subtext1 hover:text-text hover:bg-surface0 block px-3 py-2 rounded-md font-medium transition-colors"
                 >
-                  Home
-                </motion.a>
-              }
+                  {link.name}
+                </Link>
+              ))}
               
               <motion.div className="space-y-1">
                 <Link

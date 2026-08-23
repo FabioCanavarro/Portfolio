@@ -1,5 +1,25 @@
-import { getRecentTracks, getTopAlbums, getTopArtists, getTopTags } from "@/lib/lastfm";
-import { Disc, Music2, Play, Activity, Mic2, Tag, Calendar, AlertCircle, ArrowLeft } from "lucide-react";
+import {
+  getRecentTracks,
+  getTopAlbums,
+  getTopArtists,
+  getTopTags,
+  getUserInfo,
+  getTopTracks,
+} from "@/lib/lastfm";
+import {
+  Disc,
+  Music2,
+  Play,
+  Activity,
+  Mic2,
+  Tag,
+  Calendar,
+  AlertCircle,
+  ArrowLeft,
+  Flame,
+  Clock,
+  Headphones,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -11,12 +31,12 @@ export const metadata = {
 export const revalidate = 30; // Revalidate the page every 30 seconds
 
 export default async function MusicPage() {
+  const userInfo = await getUserInfo();
   const recentTracks = await getRecentTracks(12);
+  const topTracks = await getTopTracks(6);
   const topAlbums = await getTopAlbums(6);
   const topArtists = await getTopArtists(6);
   const topTags = await getTopTags(6);
-  const lastYearAlbums = await getTopAlbums(6, "12month");
-  const lastYearArtists = await getTopArtists(6, "12month");
 
   const nowPlaying = recentTracks.find((t) => t.nowPlaying);
 
@@ -76,10 +96,118 @@ export default async function MusicPage() {
         )}
       </div>
 
-      {!recentTracks.length && !topAlbums.length && (
+      {/* User Stats Card Banner */}
+      {userInfo && (
+        <section className="mb-16">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-crust/60 border border-surface0/80 rounded-2xl p-4 backdrop-blur-md flex flex-col items-center justify-center text-center hover:border-mauve/40 transition-colors">
+              <Headphones className="w-6 h-6 text-mauve mb-2" />
+              <span className="text-2xl font-extrabold text-text">
+                {userInfo.playcount.toLocaleString()}
+              </span>
+              <span className="text-xs text-subtext0 font-medium mt-1">
+                Total Scrobbles
+              </span>
+            </div>
+
+            <div className="bg-crust/60 border border-surface0/80 rounded-2xl p-4 backdrop-blur-md flex flex-col items-center justify-center text-center hover:border-sapphire/40 transition-colors">
+              <Clock className="w-6 h-6 text-sapphire mb-2" />
+              <span className="text-2xl font-extrabold text-text">
+                {userInfo.estimatedMinutes.toLocaleString()}
+              </span>
+              <span className="text-xs text-subtext0 font-medium mt-1">
+                Minutes Listened (~{userInfo.estimatedHours.toLocaleString()} hrs)
+              </span>
+            </div>
+
+            <div className="bg-crust/60 border border-surface0/80 rounded-2xl p-4 backdrop-blur-md flex flex-col items-center justify-center text-center hover:border-flamingo/40 transition-colors">
+              <Calendar className="w-6 h-6 text-flamingo mb-2" />
+              <span className="text-lg font-bold text-text">
+                {userInfo.registeredDate || "Active"}
+              </span>
+              <span className="text-xs text-subtext0 font-medium mt-1">
+                Scrobbling Since
+              </span>
+            </div>
+
+            <a
+              href={userInfo.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-crust/60 border border-surface0/80 rounded-2xl p-4 backdrop-blur-md flex flex-col items-center justify-center text-center hover:border-green/40 hover:bg-surface0/30 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden mb-1 border border-surface1 relative">
+                {userInfo.image ? (
+                  <Image
+                    src={userInfo.image}
+                    alt={userInfo.username}
+                    layout="fill"
+                    objectFit="cover"
+                  />
+                ) : (
+                  <Music2 className="w-4 h-4 m-2 text-green" />
+                )}
+              </div>
+              <span className="text-sm font-bold text-text group-hover:text-green transition-colors">
+                @{userInfo.username}
+              </span>
+              <span className="text-xs text-subtext0 font-medium mt-1">
+                View Last.fm Profile ↗
+              </span>
+            </a>
+          </div>
+        </section>
+      )}
+
+      {!recentTracks.length && !topAlbums.length && !userInfo && (
         <div className="note-block mt-8">
           <p>Configure your Last.fm API Key and Username in your environment variables to see live music data!</p>
         </div>
+      )}
+
+      {/* Top Songs Section */}
+      {topTracks.length > 0 && (
+        <section className="mb-20">
+          <h2 className="text-2xl font-bold mb-8 text-rosewater flex items-center">
+            <Flame className="w-6 h-6 mr-3" />
+            Top Songs
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {topTracks.map((track, idx) => (
+              <a
+                key={idx}
+                href={track.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex items-center space-x-4 bg-crust/40 rounded-xl p-3.5 border border-surface0 hover:border-rosewater/50 transition-all hover:bg-surface0/20"
+              >
+                <span className="text-lg font-black text-surface2 group-hover:text-rosewater transition-colors w-6 text-center shrink-0">
+                  #{idx + 1}
+                </span>
+                <div className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 border border-surface0/50 shadow-md">
+                  <Image
+                    src={track.image || "/images/placeholder-music.jpg"}
+                    alt={track.name}
+                    layout="fill"
+                    objectFit="cover"
+                    className="group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-text truncate group-hover:text-rosewater transition-colors">
+                    {track.name}
+                  </p>
+                  <p className="text-xs text-subtext0 truncate mt-0.5">
+                    {track.artist}
+                  </p>
+                  <span className="text-[10px] font-semibold text-rosewater/80 bg-rosewater/10 px-2 py-0.5 rounded-full inline-block mt-1">
+                    {track.playcount} plays
+                  </span>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Top Albums Grid */}
@@ -112,6 +240,9 @@ export default async function MusicPage() {
                 </p>
                 <p className="text-xs text-subtext0 text-center line-clamp-1 w-full mt-1">
                   {album.artist}
+                </p>
+                <p className="text-xs text-subtext1 text-center line-clamp-1 w-full mt-1">
+                  {album.playcount} plays
                 </p>
               </a>
             ))}
@@ -158,7 +289,7 @@ export default async function MusicPage() {
 
       {/* Recent Tracks List */}
       {recentTracks.length > 0 && (
-        <section>
+        <section className="mb-20">
           <h2 className="text-2xl font-bold mb-8 text-flamingo flex items-center">
             <Play className="w-6 h-6 mr-3" />
             Recently Played
@@ -204,7 +335,7 @@ export default async function MusicPage() {
 
       {/* Top Genres Section */}
       {topTags.length > 0 && (
-        <section className="mb-20 mt-20">
+        <section className="mb-20">
           <h2 className="text-2xl font-bold mb-6 text-mauve flex items-center">
             <Tag className="w-6 h-6 mr-3" />
             Favorite Genres
@@ -225,86 +356,6 @@ export default async function MusicPage() {
               </a>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* Last Year's Favorites Section */}
-      {(lastYearArtists.length > 0 || lastYearAlbums.length > 0) && (
-        <section className="mb-20 mt-20">
-          <h2 className="text-2xl font-bold mb-8 text-pink flex items-center">
-            <Calendar className="w-6 h-6 mr-3" />
-            Last Year&apos;s Favorites (Past 12 Months)
-          </h2>
-          
-          {lastYearArtists.length > 0 && (
-            <div className="mb-12">
-              <h3 className="text-lg font-bold mb-4 text-subtext0 flex items-center">
-                <Mic2 className="w-5 h-5 mr-2" /> Top Artists of the Year
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                {lastYearArtists.map((artist, idx) => (
-                  <a
-                    key={idx}
-                    href={artist.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex flex-col items-center bg-crust/30 rounded-xl p-3 border border-surface0 hover:border-pink/50 transition-colors"
-                  >
-                    <div className="relative w-full aspect-square rounded-full overflow-hidden mb-3 shadow-md border border-surface0/50">
-                      <Image
-                        src={artist.image || "/images/placeholder-music.jpg"}
-                        alt={artist.name}
-                        layout="fill"
-                        objectFit="cover"
-                        className="group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                    <p className="text-sm font-semibold text-text text-center line-clamp-1 w-full">
-                      {artist.name}
-                    </p>
-                    <p className="text-xs text-subtext0 text-center line-clamp-1 w-full mt-1">
-                      {artist.playcount} plays
-                    </p>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {lastYearAlbums.length > 0 && (
-            <div>
-              <h3 className="text-lg font-bold mb-4 text-subtext0 flex items-center">
-                <Disc className="w-5 h-5 mr-2" /> Top Albums of the Year
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-                {lastYearAlbums.map((album, idx) => (
-                  <a
-                    key={idx}
-                    href={album.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex flex-col items-center bg-crust/30 rounded-xl p-3 border border-surface0 hover:border-pink/50 transition-colors"
-                  >
-                    <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 shadow-md border border-surface0/50">
-                      <Image
-                        src={album.image || "/images/placeholder-music.jpg"}
-                        alt={album.name}
-                        layout="fill"
-                        objectFit="cover"
-                        className="group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                    <p className="text-sm font-semibold text-text text-center line-clamp-1 w-full">
-                      {album.name}
-                    </p>
-                    <p className="text-xs text-subtext0 text-center line-clamp-1 w-full mt-1">
-                      {album.artist}
-                    </p>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
         </section>
       )}
     </div>
