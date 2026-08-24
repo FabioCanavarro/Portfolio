@@ -46,15 +46,20 @@ export async function getRecentTracks(limit: number = 10): Promise<LastFmTrack[]
     
     if (!data.recenttracks) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tracks = data.recenttracks.track.map((track: Record<string, any>) => ({
-      name: track.name,
-      artist: track.artist["#text"],
-      album: track.album["#text"],
-      url: track.url,
-      image: track.image[3]["#text"] || track.image[2]["#text"], // large or extralarge
-      nowPlaying: track["@attr"]?.nowplaying === "true",
-    }));
+    const tracks = data.recenttracks.track.map((track: Record<string, unknown>) => {
+      const artistObj = track.artist as { "#text"?: string } | undefined;
+      const albumObj = track.album as { "#text"?: string } | undefined;
+      const imageArr = track.image as Array<{ "#text"?: string }> | undefined;
+      const attrObj = track["@attr"] as { nowplaying?: string } | undefined;
+      return {
+        name: String(track.name || ""),
+        artist: artistObj?.["#text"] || "",
+        album: albumObj?.["#text"] || "",
+        url: String(track.url || ""),
+        image: imageArr?.[3]?.["#text"] || imageArr?.[2]?.["#text"] || "",
+        nowPlaying: attrObj?.nowplaying === "true",
+      };
+    });
 
     const enrichedTracks = await Promise.all(tracks.map(async (track: LastFmTrack) => {
       const ytImage = await getYTMusicImage(`${track.artist} ${track.name}`, "SONG");
@@ -91,14 +96,17 @@ export async function getTopAlbums(limit: number = 6, period: string = "overall"
     
     if (!data.topalbums) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const albums = data.topalbums.album.map((album: Record<string, any>) => ({
-      name: album.name,
-      artist: album.artist.name,
-      playcount: album.playcount,
-      url: album.url,
-      image: album.image[3]["#text"] || album.image[2]["#text"],
-    }));
+    const albums = data.topalbums.album.map((album: Record<string, unknown>) => {
+      const artistObj = album.artist as { name?: string } | undefined;
+      const imageArr = album.image as Array<{ "#text"?: string }> | undefined;
+      return {
+        name: String(album.name || ""),
+        artist: artistObj?.name || "",
+        playcount: String(album.playcount || ""),
+        url: String(album.url || ""),
+        image: imageArr?.[3]?.["#text"] || imageArr?.[2]?.["#text"] || "",
+      };
+    });
 
     const enrichedAlbums = await Promise.all(albums.map(async (album: LastFmAlbum) => {
       const ytImage = await getYTMusicImage(`${album.artist} ${album.name}`, "ALBUM");
@@ -129,15 +137,15 @@ export async function getTopArtists(limit: number = 6, period: string = "overall
     
     if (!data.topartists) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const artists = data.topartists.artist.map((artist: Record<string, any>) => ({
-      name: artist.name,
-      playcount: artist.playcount,
-      url: artist.url,
-      // Last.fm's artist API sometimes doesn't provide great images in modern times
-      // due to a licensing change, but we will grab what they offer.
-      image: artist.image[3]["#text"] || artist.image[2]["#text"],
-    }));
+    const artists = data.topartists.artist.map((artist: Record<string, unknown>) => {
+      const imageArr = artist.image as Array<{ "#text"?: string }> | undefined;
+      return {
+        name: String(artist.name || ""),
+        playcount: String(artist.playcount || ""),
+        url: String(artist.url || ""),
+        image: imageArr?.[3]?.["#text"] || imageArr?.[2]?.["#text"] || "",
+      };
+    });
 
     const enrichedArtists = await Promise.all(artists.map(async (artist: LastFmArtist) => {
       const ytImage = await getYTMusicImage(artist.name, "ARTIST");
@@ -162,11 +170,10 @@ export async function getTopTags(limit: number = 6): Promise<LastFmTag[]> {
     
     if (!data.toptags || !data.toptags.tag) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.toptags.tag.map((tag: Record<string, any>) => ({
-      name: tag.name,
-      count: tag.count,
-      url: tag.url,
+    return data.toptags.tag.map((tag: Record<string, unknown>) => ({
+      name: String(tag.name || ""),
+      count: String(tag.count || ""),
+      url: String(tag.url || ""),
     }));
   } catch (error) {
     console.error("Error fetching Last.fm top tags:", error);
@@ -255,18 +262,24 @@ export async function getTopTracks(limit: number = 6, period: string = "overall"
 
     if (!data.toptracks || !data.toptracks.track) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawTracks = Array.isArray(data.toptracks.track)
       ? data.toptracks.track
       : [data.toptracks.track];
 
-    const tracks = rawTracks.map((track: Record<string, any>) => ({
-      name: track.name,
-      artist: typeof track.artist === "object" ? track.artist.name : track.artist,
-      playcount: track.playcount,
-      url: track.url,
-      image: track.image?.[3]?.["#text"] || track.image?.[2]?.["#text"] || "",
-    }));
+    const tracks = rawTracks.map((trackItem: unknown) => {
+      const track = trackItem as Record<string, unknown>;
+      const artistObj = track.artist as { name?: string } | string | undefined;
+      const artistName = typeof artistObj === "object" ? (artistObj?.name || "") : (artistObj || "");
+      const imageArr = track.image as Array<{ "#text"?: string }> | undefined;
+      const imageUrl = imageArr?.[3]?.["#text"] || imageArr?.[2]?.["#text"] || "";
+      return {
+        name: String(track.name || ""),
+        artist: String(artistName),
+        playcount: String(track.playcount || ""),
+        url: String(track.url || ""),
+        image: imageUrl,
+      };
+    });
 
     const enrichedTracks = await Promise.all(
       tracks.map(async (track: LastFmTopTrack) => {
@@ -293,18 +306,25 @@ export async function getLovedTracks(limit: number = 6): Promise<LastFmLovedTrac
 
     if (!data.lovedtracks || !data.lovedtracks.track) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rawTracks = Array.isArray(data.lovedtracks.track)
       ? data.lovedtracks.track
       : [data.lovedtracks.track];
 
-    const tracks = rawTracks.map((track: Record<string, any>) => ({
-      name: track.name,
-      artist: typeof track.artist === "object" ? track.artist.name : track.artist,
-      url: track.url,
-      image: track.image?.[3]?.["#text"] || track.image?.[2]?.["#text"] || "",
-      dateLoved: track.date?.["#text"] || "",
-    }));
+    const tracks = rawTracks.map((trackItem: unknown) => {
+      const track = trackItem as Record<string, unknown>;
+      const artistObj = track.artist as { name?: string } | string | undefined;
+      const artistName = typeof artistObj === "object" ? (artistObj?.name || "") : (artistObj || "");
+      const imageArr = track.image as Array<{ "#text"?: string }> | undefined;
+      const imageUrl = imageArr?.[3]?.["#text"] || imageArr?.[2]?.["#text"] || "";
+      const dateObj = track.date as { "#text"?: string } | undefined;
+      return {
+        name: String(track.name || ""),
+        artist: String(artistName),
+        url: String(track.url || ""),
+        image: imageUrl,
+        dateLoved: dateObj?.["#text"] || "",
+      };
+    });
 
     const enrichedTracks = await Promise.all(
       tracks.map(async (track: LastFmLovedTrack) => {

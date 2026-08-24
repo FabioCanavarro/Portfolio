@@ -42,11 +42,9 @@ export async function getYTMusicImage(
     if (results && results.length > 0) {
       // Filter by result type (SONG → "SONG", ARTIST → "ARTIST", ALBUM → "ALBUM")
       // Fall back to the first result if no match is found
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const typed = (results as any[]).find(
         (r) => r.resultType?.toUpperCase() === type,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const item = (typed ?? results[0]) as any;
       const thumbnails = item.thumbnails;
 
@@ -101,11 +99,9 @@ export async function getYTMusicVideoId(
     const results = await client.search(query);
     if (results && results.length > 0) {
       // Prioritize SONG type results that have a videoId, fallback to any result with videoId
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const songResult = (results as any[]).find(
         (r) => r.resultType?.toUpperCase() === "SONG" && r.videoId,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const item = (songResult ?? results.find((r: any) => r.videoId) ?? results[0]) as any;
 
       if (item && item.videoId) {
