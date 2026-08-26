@@ -115,8 +115,8 @@ export default function GalleryClient({ photos }: Props) {
 
 
   const proudPhotos = useMemo(() => {
-    // Only display active published photos in the proud section, limit to 10
-    return photos.filter((p) => p.published && p.proud).slice(0, 10);
+    // Only display active published photos in the proud section
+    return photos.filter((p) => p.published && p.proud);
   }, [photos]);
 
   // Sync state from client localStorage after hydration to prevent SSR mismatch
@@ -371,9 +371,9 @@ export default function GalleryClient({ photos }: Props) {
           <div className="absolute -top-12 -left-12 w-48 h-48 bg-yellow/5 rounded-full blur-3xl pointer-events-none" />
           <div className="flex items-center gap-3">
             <Sparkles className="text-yellow fill-yellow animate-pulse" size={20} />
-            <h2 className="text-xl font-bold text-text">Featured Masterpieces</h2>
+            <h2 className="text-xl font-bold text-text">Proudest Pictures</h2>
             <div className="flex-1 h-px bg-surface0/45" />
-            <span className="text-[10px] text-subtext0 font-mono tracking-widest uppercase">Proud Selection</span>
+            <span className="text-[10px] text-subtext0 font-mono tracking-widest uppercase">Proudest Pictures ({proudPhotos.length})</span>
           </div>
 
           <div className="relative w-full h-[320px] sm:h-[400px] md:h-[480px] flex items-center justify-center overflow-hidden py-4">
@@ -383,9 +383,8 @@ export default function GalleryClient({ photos }: Props) {
                 onClick={() => setSelectedPhoto(proudPhotos[0])}
                 className="relative w-[80%] md:w-[50%] h-full rounded-2xl overflow-hidden bg-black/60 border border-yellow/30 shadow-[0_0_20px_rgba(249,226,175,0.15)] cursor-pointer hover:border-yellow transition-all"
               >
-                <img src={proudPhotos[0].edited} alt={proudPhotos[0].title} className="w-full h-full object-cover" />
+                <img src={proudPhotos[0].edited} alt="" className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-end p-4">
-                  <h3 className="text-base sm:text-lg font-bold text-text truncate">{proudPhotos[0].title}</h3>
                   <p className="text-xs text-subtext0 font-mono">📍 {proudPhotos[0].city || proudPhotos[0].country}</p>
                 </div>
               </div>
@@ -398,9 +397,8 @@ export default function GalleryClient({ photos }: Props) {
                     onClick={() => setSelectedPhoto(photo)}
                     className="relative w-[45%] h-[90%] rounded-2xl overflow-hidden bg-black/60 border border-yellow/20 hover:border-yellow cursor-pointer transition-all"
                   >
-                    <img src={photo.edited} alt={photo.title} className="w-full h-full object-cover" />
+                    <img src={photo.edited} alt="" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-end p-4">
-                      <h3 className="text-sm sm:text-base font-bold text-text truncate">{photo.title}</h3>
                       <p className="text-[10px] text-subtext0 font-mono">📍 {photo.city || photo.country}</p>
                     </div>
                   </div>
@@ -439,7 +437,7 @@ export default function GalleryClient({ photos }: Props) {
                 >
                   <img 
                     src={proudPhotos[activeProudIndex].edited} 
-                    alt={proudPhotos[activeProudIndex].title} 
+                    alt="" 
                     className="absolute inset-0 w-full h-full object-cover animate-fade-in" 
                     key={proudPhotos[activeProudIndex].id}
                   />
@@ -448,9 +446,8 @@ export default function GalleryClient({ photos }: Props) {
                   
                   {/* Floating description details */}
                   <div className="relative p-4 sm:p-6 z-20 space-y-1 select-none">
-                    <span className="text-[9px] uppercase font-mono tracking-widest text-yellow font-bold bg-yellow/10 px-2 py-0.5 rounded border border-yellow/20">Featured Masterpiece</span>
-                    <h3 className="text-base sm:text-xl font-black text-text drop-shadow-md truncate pt-1">{proudPhotos[activeProudIndex].title}</h3>
-                    <p className="text-[10px] sm:text-xs text-subtext0 font-mono flex items-center gap-1 drop-shadow">
+                    <span className="text-[9px] uppercase font-mono tracking-widest text-yellow font-bold bg-yellow/10 px-2 py-0.5 rounded border border-yellow/20">Proudest Picture</span>
+                    <p className="text-[10px] sm:text-xs text-subtext0 font-mono flex items-center gap-1 drop-shadow pt-1">
                       <span>📍</span>
                       <span>{proudPhotos[activeProudIndex].specific_location || [proudPhotos[activeProudIndex].city, proudPhotos[activeProudIndex].country].filter(Boolean).join(", ")}</span>
                     </p>

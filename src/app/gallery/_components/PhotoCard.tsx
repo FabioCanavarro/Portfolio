@@ -87,12 +87,8 @@ export default function PhotoCard({
       <div className="hover-border-animated-wrapper w-full h-full relative z-10">
         <div className="hover-border-animated-inner bg-crust/95 backdrop-blur-md overflow-hidden flex flex-col h-full transition-all duration-300 border border-surface0/50 group-hover:border-transparent">
         
-        {/* Top Section - Title and Toggle */}
-        <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-between items-start bg-gradient-to-b from-black/60 to-transparent">
-          <h3 className="text-lg font-bold text-white drop-shadow-md pr-2 truncate">
-            {photo.title}
-          </h3>
-          
+        {/* Top Section - Version Badges and Toggle */}
+        <div className="absolute top-0 left-0 right-0 p-4 z-20 flex justify-end items-start bg-gradient-to-b from-black/60 to-transparent">
           {versions.length > 1 ? (
             <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm p-0.5 rounded-lg border border-surface1/60 z-30 shrink-0">
               {versions.map((ver, idx) => (
