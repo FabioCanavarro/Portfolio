@@ -15,12 +15,15 @@ import {
   Database,
   Keyboard,
   Brain,
+  FileText,
+  Download,
 } from "lucide-react";
 import AnimatedText from "./animated-text";
 import Link from "next/link";
 import AboutMe from "./about-me";
 import DiscordPresence from "./discord-presence";
 import LastfmPresence from "./lastfm-presence";
+import OpenSource from "./open-source";
 
 
 const projects = [
@@ -105,33 +108,6 @@ const projects = [
   },
 ];
 
-const contributions = [
-  {
-    repo: "p-r-a-v-i-n/scaligator",
-    description:
-      "Submitted a pull request to an intelligent Kubernetes Horizontal Pod Autoscaler alternative",
-    link: "https://github.com/p-r-a-v-i-n/scaligator/pulls?q=is%3Apr+author%3AFabioCanavarro",
-  },
-  {
-    repo: "bifrost/bifrost",
-    description:
-      "Contributed to an open-source smart lighting system alternative.",
-    link: "https://github.com/chrivers/bifrost/pulls?q=is%3Apr+author%3AFabioCanavarro",
-  },
-  {
-    repo: "p-r-a-v-i-n/rwatch",
-    description:
-      "Submitted a pull request to an eBPF-based threat detection tool",
-    link: "https://github.com/p-r-a-v-i-n/rwatch/pulls?q=is%3Apr+author%3AFabioCanavarro",
-  },
-  {
-    repo: "infraust/infraust",
-    description:
-      "Submitted a pull request to a high-efficiency Minecraft server host.",
-    link: "https://github.com/Shadowner/Infrarust/pulls?q=is%3Apr+author%3AFabioCanavarro",
-  },
-];
-
 
 import LatestPosts from "./latest-posts";
 import Contact from "./contact";
@@ -212,6 +188,25 @@ const MainBody = ({ posts }: MainBodyProps) => {
               <Mail size={28} />
             </Link>
           </motion.div>
+
+          {/* Download Resume / CV CTA */}
+          <motion.div
+            className="flex justify-center mt-6"
+            variants={itemVariants}
+          >
+            <a
+              href="/Fabio_Canavarro_Resume.pdf"
+              download="Fabio_Canavarro_Resume.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-6 py-2.5 rounded-xl bg-mauve/15 hover:bg-mauve/25 text-mauve border border-mauve/30 font-medium text-sm transition-all duration-300 shadow-md shadow-mauve/10 hover:shadow-lg hover:shadow-mauve/20 hover:scale-[1.02] group"
+            >
+              <FileText className="w-4 h-4 text-mauve group-hover:rotate-12 transition-transform" />
+              <span>Download Resume / CV</span>
+              <Download className="w-4 h-4 text-rosewater group-hover:translate-y-0.5 transition-transform" />
+            </a>
+          </motion.div>
+
           <div className="flex flex-col xl:flex-row items-center justify-center gap-4 mt-8">
             <DiscordPresence />
             <LastfmPresence />
@@ -326,45 +321,7 @@ const MainBody = ({ posts }: MainBodyProps) => {
 
 
         {/* Open Source Contributions */}
-        <motion.section
-          className="mb-24 relative"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.7 }}
-        >
-          <div id="opensource" className="absolute -top-24"></div>
-          <h2 className="text-3xl font-bold mb-6 text-green flex items-center">
-            <GitPullRequest className="w-6 h-6 mr-3" />
-            Open Source Contributions
-          </h2>
-          <div className="space-y-4">
-            {contributions.map((contrib, index) => (
-              <motion.div
-                key={index}
-                variants={itemVariants}
-                className="bg-crust/50 p-4 rounded-xl border border-surface0 backdrop-blur-sm transition-all duration-300 shadow-lg shadow-crust/50 hover:border-green/50 hover:shadow-xl hover:shadow-green/10"
-              >
-                <Link
-                  href={contrib.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group"
-                >
-                  <div className="flex justify-between items-center">
-                    <h3 className="font-semibold text-text group-hover:text-green transition-colors">
-                      {contrib.repo}
-                    </h3>
-                    <ExternalLink className="w-4 h-4 text-subtext1 group-hover:text-green transition-transform duration-300 group-hover:translate-x-1" />
-                  </div>
-                  <p className="text-subtext0 text-sm mt-1">
-                    {contrib.description}
-                  </p>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
+        <OpenSource />
 
         <GithubActivity />
 
